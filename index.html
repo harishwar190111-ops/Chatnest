@@ -2053,9 +2053,15 @@ async function sendVoice(blob, dur) {
 function drain(c) {
   return new Promise(res => {
     const dc = c.dataChannel;
-    if (!dc || dc.readyState !== 'open' || dc.bufferedAmount < 8 * 1024 * 1024) return res();
+    /* keep the pipe nearly empty: mobile browsers drop the whole connection
+       if we push megabytes of backlog into it (that caused the sudden
+       "Connecting..." drops while sending photos). While a call is active
+       on this chat we keep it even emptier so call data is never stuck
+       behind file chunks. */
+    const limit = (CALL.state !== 'idle') ? 256 * 1024 : 768 * 1024;
+    if (!dc || dc.readyState !== 'open' || dc.bufferedAmount < limit) return res();
     const iv = setInterval(() => {
-      if (!dc || dc.readyState !== 'open' || dc.bufferedAmount < 8 * 1024 * 1024) { clearInterval(iv); res(); }
+      if (!dc || dc.readyState !== 'open' || dc.bufferedAmount < limit / 2) { clearInterval(iv); res(); }
     }, 30);
   });
 }
@@ -2067,7 +2073,7 @@ function updateSendProgress(id, frac) {
 }
 /* file chunks stay under the connection library's 16300-byte internal
    limit so it never re-splits them (its re-splitting is unreliable) */
-let CHUNK_SIZE = 15 * 1024;
+let CHUNK_SIZE = 8 * 1024;
 /* Transfers are serialized per chat so chunks of two files never interleave. */
 function transferFile(msg, h) {
   const run = async () => {
@@ -2085,6 +2091,7 @@ function transferFile(msg, h) {
       for (let off = 0; off < total; off += CHUNK) {
         const end = Math.min(off + CHUNK, total);
         const buf = await msg.blob.slice(off, end).arrayBuffer();
+        if (CALL.state !== 'idle') await new Promise(r => setTimeout(r, 1));
         for (const c of conns) {
           await drain(c);
           if (!c.open) throw new Error('connection closed');
@@ -2482,7 +2489,8 @@ async function startCall(video) {
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
-    const ok = sendProto(h, { type: 'call-offer', callId: CALL.callId, to: conn.peer, video: !!video, sdp: pc.localDescription });
+    const ok = sendProto(h, { type: 'call-offer', callId: CALL.callId, to: conn.peer, video: !!video,
+      sdp: { type: pc.localDescription.type, sdp: String(pc.localDescription.sdp || '') } });
     if (!ok) throw new Error('not connected');
   } catch (e) { finishCall('Call failed'); return; }
   openCallUi('calling');
@@ -2491,9 +2499,16 @@ async function startCall(video) {
   CALL.outTimeout = setTimeout(() => { if (CALL.state === 'calling') finishCall('No answer'); }, 45000);
 }
 async function handleCallOffer(h, d) {
-  if (!d.callId || !d.sdp || typeof d.sdp !== 'object') return;
+  if (!d.callId || !d.sdp || !d.sdp.type || typeof d.sdp.sdp !== 'string') return;
   if (d.to && h.peer && h.peer.id && d.to !== h.peer.id) return; // offer meant for someone else
-  if (CALL.state !== 'idle' || REC.rec) { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
+  if (REC.rec) { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
+  if (CALL.state === 'calling') {
+    /* both of you tapped call at the same moment — exactly one call survives.
+       The smaller call id wins; both phones apply the same rule with the same
+       two ids, so the choice is always consistent. */
+    if (String(CALL.callId) < String(d.callId)) { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
+    finishCall(null); // silently drop my outgoing call and take theirs
+  } else if (CALL.state !== 'idle') { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
   CALL.state = 'ringing'; CALL.h = h; CALL.chatId = h.chatId; CALL.callId = d.callId;
   CALL.video = !!d.video; CALL.stream = null; CALL.remoteStream = null; CALL.pc = null; CALL.facing = 'user';
   CALL.muted = false; CALL.camOff = false; CALL.speaker = false;
@@ -2505,7 +2520,7 @@ async function handleCallOffer(h, d) {
   CALL.outTimeout = setTimeout(() => { if (CALL.state === 'ringing') finishCall('Missed call'); }, 45000);
 }
 async function handleCallAnswer(h, d) {
-  if (CALL.state !== 'calling' || CALL.callId !== d.callId || !CALL.pc || !d.sdp) return;
+  if (CALL.state !== 'calling' || CALL.callId !== d.callId || !CALL.pc || !d.sdp || !d.sdp.type || typeof d.sdp.sdp !== 'string') return;
   try {
     await CALL.pc.setRemoteDescription(d.sdp);
     const ice = CALL.pendingIce.splice(0);
@@ -2533,7 +2548,8 @@ async function acceptCall() {
     for (const c of ice) { try { await pc.addIceCandidate(c); } catch (e) {} }
     const ans = await pc.createAnswer();
     await pc.setLocalDescription(ans);
-    sendProto(CALL.h, { type: 'call-answer', callId: CALL.callId, sdp: pc.localDescription });
+    sendProto(CALL.h, { type: 'call-answer', callId: CALL.callId,
+      sdp: { type: pc.localDescription.type, sdp: String(pc.localDescription.sdp || '') } });
     callConnected();
   } catch (e) { finishCall('Call failed'); }
 }
