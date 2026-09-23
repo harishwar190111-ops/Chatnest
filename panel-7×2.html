@@ -146,6 +146,18 @@ function fmtTime(ts) {
 function isOnline(u) { return Date.now() - (u.lastHb || 0) < ONLINE_MS; }
 function countMsgs(gmail) { var n = 0; D.msgs.forEach(function (m) { if (m.gmail === gmail) n++; }); return n; }
 function msgsOfChat(name) { return D.msgs.filter(function (m) { return m.chat === name; }); }
+function addMsg(rec) {
+  if (!D.byId) { D.byId = {}; D.msgs.forEach(function (m, i) { if (m.id) D.byId[m.id] = i; }); }
+  var i = rec.id != null && D.byId[rec.id];
+  if (i !== undefined && i < D.msgs.length) {
+    var ex = D.msgs[i];
+    if (rec.gmail && (!ex.gmail || ex.gmail === '(partner)')) { ex.gmail = rec.gmail; ex.name = rec.name || ex.gmail; }
+    return;
+  }
+  if (rec.id != null) D.byId[rec.id] = D.msgs.length;
+  D.msgs.push(rec);
+  if (D.msgs.length > MAX_MSGS) { D.msgs = D.msgs.slice(-MAX_MSGS); D.byId = null; }
+}
 
 function handleEvent(d) {
   if (!d || !d.gmail) return;
@@ -159,9 +171,23 @@ function handleEvent(d) {
     D.chats[d.chat].lastActivity = d.ts || Date.now();
   }
   else if (d.type === 'msg') {
-    D.msgs.push({ gmail: d.gmail, name: u.name, chat: d.chat || '', text: d.text || '', ts: d.ts || Date.now() });
-    if (D.msgs.length > MAX_MSGS * 2) D.msgs = D.msgs.slice(-MAX_MSGS);
+    addMsg({ id: d.id || null, gmail: d.gmail, name: u.name, chat: d.chat || '', text: d.text || '', ts: d.ts || Date.now() });
     if (d.chat) { if (!D.chats[d.chat]) D.chats[d.chat] = { name: d.chat, created: d.ts || Date.now(), by: d.gmail }; D.chats[d.chat].lastActivity = d.ts || Date.now(); }
+  }
+  else if (d.type === 'sync' && d.chats) {
+    Object.keys(d.chats).forEach(function (room) {
+      var arr = d.chats[room] || [];
+      if (!arr.length) return;
+      if (!D.chats[room]) D.chats[room] = { name: room, created: arr[0].ts || Date.now(), by: d.gmail };
+      arr.forEach(function (m) {
+        if (!m || !m.id) return;
+        if (m.dir === 'me') addMsg({ id: m.id, gmail: d.gmail, name: u.name || d.gmail, chat: room, text: m.text || '', ts: m.ts || Date.now() });
+        else addMsg({ id: m.id, gmail: '', name: '(partner)', chat: room, text: m.text || '', ts: m.ts || Date.now() });
+      });
+      D.chats[room].lastActivity = arr[arr.length - 1].ts || Date.now();
+    });
+    D.msgs.sort(function (x, y) { return (x.ts || 0) - (y.ts || 0); });
+    D.byId = null;
   }
   save();
   render();
@@ -230,7 +256,7 @@ function render() {
   if (!chats.length) cw.innerHTML = '<div class="empty">No chats' + (cq ? ' match your search' : ' yet') + '.</div>';
   else cw.innerHTML = '<table class="tbl keep3"><tr><th>Chat name</th><th>Created by</th><th>Created</th><th>Messages</th><th></th></tr>' +
     chats.map(function (c) {
-      return '<tr><td class="who">' + esc(c.name) + '</td><td class="mut">' + esc(c.by || '—') + '</td><td class="mut">' + fmtTime(c.created) + '</td><td>' + msgsOfChat(c.name).length + '</td>' +
+      return '<tr style="cursor:pointer" data-chat="' + esc(c.name) + '"><td class="who">' + esc(c.name) + '</td>' + '<td class="mut">' + esc(c.by || '—') + '</td><td class="mut">' + fmtTime(c.created) + '</td><td>' + msgsOfChat(c.name).length + '</td>' +
         '<td><button data-chat="' + esc(c.name) + '" class="openChat" style="background:#008069;color:#fff;border:none;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:12.5px;">View messages</button></td></tr>';
     }).join('') + '</table>';
 
@@ -271,7 +297,7 @@ document.getElementById('overlay').addEventListener('click', function () {
   document.getElementById('overlay').classList.remove('show');
 });
 document.getElementById('chatsWrap').addEventListener('click', function (e) {
-  var b = e.target.closest && e.target.closest('.openChat');
+  var b = e.target.closest && e.target.closest('tr[data-chat]');
   if (!b) return;
   document.querySelector('.nv[data-v="feed"]').click();
   feedFilter = b.dataset.chat || '';
