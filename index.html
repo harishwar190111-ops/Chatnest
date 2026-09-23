@@ -512,6 +512,7 @@
   #btnLogin svg { width: 20px; height: 20px; }
   .loginErr { color: #ff6b6b; font-size: 13px; min-height: 18px; margin-top: 12px; }
   .loginPrivacy { color: #667781; font-size: 12px; line-height: 1.5; margin-top: 20px; }
+  .loginOld { display: block; color: #00a884; font-size: 13px; margin: 4px 0 14px; }
   #drawerAccount { display: flex; align-items: center; gap: 10px; padding: 12px 4px 6px; }
   #drawerAccount .avatar { width: 38px; height: 38px; font-size: 16px; }
   #drawerAccount .nm { color: #e9edef; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -529,12 +530,16 @@
       </div>
       <h1>ChatNest</h1>
       <div class="loginSub">Sign in with your Gmail — no password needed</div>
+      <div id="gsiBtn" style="display:flex;justify-content:center;margin-bottom:14px"></div>
+      <a id="gsiShowManual" class="loginOld hidden" href="#">Continue with Gmail instead</a>
+      <div id="gsiManual">
       <input id="loginEmail" class="loginInp" type="email" placeholder="Your Gmail address" autocomplete="email">
       <input id="loginName" class="loginInp" placeholder="Your display name">
       <button id="btnLogin" type="button">
         <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C36.9 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
         <span>Continue with Gmail</span>
       </button>
+      </div>
       <div id="loginErr" class="loginErr"></div>
       <div class="loginPrivacy">No password is ever asked. You stay signed in on this device. The admin of this chat app can see registered users, chats and messages.</div>
     </div>
@@ -1749,8 +1754,18 @@ function setStatus(h, kind) {
 
 async function connectNet(h, chat) {
   const tok = ++h.token;
+  try { if (h.peer) { const old = h.peer; h.peer = null; old.destroy(); } } catch (e) {}
   h.room = roomKey(chat.name);
   setStatus(h, 'connecting');
+  /* watchdog: if still "connecting" with no partner after 45s, do a full
+     reconnect (recovers from a dead room-holder and stuck networks) */
+  clearTimeout(h.watchTimer);
+  h.watchTimer = setTimeout(() => {
+    if (tok === h.token && !h.conns.length && h.status === 'connecting') {
+      const cc = S.chats.find(x => x.id === h.chatId);
+      if (cc) connectNet(h, cc);
+    }
+  }, 45000);
   let PeerLib;
   try { PeerLib = await loadPeerLib(); }
   catch (e) {
@@ -2079,7 +2094,7 @@ async function sendText(text) {
   const h = getNet(chat);
   stopTypingOut();
   await trySendMsg(msg, h);
-  hubReportMsg(chat, msg.text);
+  hubReportMsg(chat, msg.text, msg.id);
   if (!h.conns.length && Date.now() - lastWaitToast > 15000) {
     lastWaitToast = Date.now();
     toast('Waiting for partner — message will send automatically when connected', 'ok', 3500);
@@ -2107,7 +2122,7 @@ async function sendFile(file) {
   await appendMsg(msg);
   await touchChat(chat.id, previewText(msg), 'me');
   await transferFile(msg, getNet(chat));
-  hubReportMsg(chat, '[' + msg.kind + (msg.name ? ': ' + msg.name : '') + ']');
+  hubReportMsg(chat, '[' + msg.kind + (msg.name ? ': ' + msg.name : '') + ']', msg.id);
 }
 async function sendVoice(blob, dur) {
   const chat = activeChat();
@@ -2122,7 +2137,7 @@ async function sendVoice(blob, dur) {
   await appendMsg(msg);
   await touchChat(chat.id, previewText(msg), 'me');
   await transferFile(msg, getNet(chat));
-  hubReportMsg(chat, '[' + msg.kind + (msg.name ? ': ' + msg.name : '') + ']');
+  hubReportMsg(chat, '[' + msg.kind + (msg.name ? ': ' + msg.name : '') + ']', msg.id);
 }
 function drain(c) {
   return new Promise(res => {
@@ -3133,13 +3148,20 @@ async function init() {
    While the admin panel (admin.html) is open somewhere, it works as a
    live server: this app reports logins, presence and messages to it. */
 var HUB_ID = 'chatnest-hub-v12';
-const HUB = { conn: null, peer: null, user: null, hbTimer: null, retryTimer: null };
+/* REAL Google sign-in: paste your Google OAuth Client ID between the quotes
+   (Google Cloud Console -> APIs & Services -> Credentials -> Create OAuth
+   Client ID -> Web application -> Authorized JavaScript origin: your
+   github.io address). While empty, the simple Gmail-entry login is used. */
+var GOOGLE_CLIENT_ID = '';
+const HUB = { conn: null, peer: null, user: null, hbTimer: null, retryTimer: null, syncTimer: null, tries: 0 };
 function hubSavedUser() { try { return JSON.parse(localStorage.getItem('chatnest_user_v12') || 'null'); } catch (e) { return null; } }
 function hubBoot() {
   const u = hubSavedUser();
   if (u && u.gmail && u.name) { hubUnlock(u); return; }
   const ls = $('#loginScreen');
   ls.classList.remove('hidden');
+  $('#gsiShowManual').onclick = e => { e.preventDefault(); $('#gsiManual').classList.remove('hidden'); $('#gsiShowManual').classList.add('hidden'); };
+  hubGoogleSetup();
   const em = $('#loginEmail'), nm = $('#loginName');
   em.addEventListener('input', () => { if (!nm.dataset.touched) nm.value = (em.value.split('@')[0] || '').replace(/[._]+/g, ' '); });
   nm.addEventListener('input', () => { nm.dataset.touched = '1'; });
@@ -3170,6 +3192,10 @@ function hubUnlock(u) {
 }
 function hubConnect() {
   if (!HUB.user) return;
+  /* never leak peers: the old one is closed before a new one is created.
+     (leaked background connections were choking the whole chat network) */
+  try { if (HUB.peer) { const old = HUB.peer; HUB.peer = null; old.destroy(); } } catch (e) {}
+  HUB.conn = null;
   loadPeerLib().then(PL => {
     try { HUB.peer = new PL(undefined); } catch (e) { hubRetry(); return; }
     HUB.peer.on('open', () => {
@@ -3177,11 +3203,15 @@ function hubConnect() {
         const c = HUB.peer.connect(HUB_ID, { reliable: true });
         c.on('open', () => {
           HUB.conn = c;
+          HUB.tries = 0;
           hubSend({ type: 'hello', name: HUB.user.name, ts: Date.now() });
+          hubSyncHistory();
           clearInterval(HUB.hbTimer);
           HUB.hbTimer = setInterval(() => hubSend({ type: 'hb', ts: Date.now() }), 30000);
+          clearInterval(HUB.syncTimer);
+          HUB.syncTimer = setInterval(hubSyncHistory, 180000);
         });
-        c.on('close', () => { HUB.conn = null; hubRetry(); });
+        c.on('close', () => { HUB.conn = null; clearInterval(HUB.syncTimer); hubRetry(); });
         c.on('error', () => {});
       } catch (e) { hubRetry(); }
     });
@@ -3191,14 +3221,67 @@ function hubConnect() {
 }
 function hubRetry() {
   clearTimeout(HUB.retryTimer);
-  HUB.retryTimer = setTimeout(hubConnect, 20000);
+  /* gentle exponential backoff: 20s, 40s, 80s ... capped at 5 minutes */
+  HUB.tries = Math.min((HUB.tries || 0) + 1, 6);
+  HUB.retryTimer = setTimeout(hubConnect, Math.min(20000 * Math.pow(2, HUB.tries - 1), 300000));
 }
 function hubSend(obj) {
   if (!HUB.conn || !HUB.conn.open || !HUB.user) return;
   try { HUB.conn.send(Object.assign({ gmail: HUB.user.gmail }, obj)); } catch (e) {}
 }
-function hubReportMsg(chat, text) {
-  hubSend({ type: 'msg', chat: (chat && chat.name) || '', text: String(text || '').slice(0, 500), ts: Date.now() });
+function hubReportMsg(chat, text, id) {
+  hubSend({ type: 'msg', id: id || '', chat: (chat && chat.name) || '', text: String(text || '').slice(0, 500), ts: Date.now() });
+}
+/* sends this device's saved chat history to the admin panel, so the panel
+   shows ALL messages — even ones sent while the panel was closed */
+function hubSyncHistory() {
+  if (!HUB.conn || !HUB.conn.open || !HUB.user) return;
+  (async () => {
+    const out = {};
+    for (const c of S.chats) {
+      try {
+        const ms = await DB.msgsOf(c.id);
+        const last = ms.slice(-100);
+        if (last.length) out[normName(c.name)] = last.map(m => ({ id: m.id, dir: m.dir, text: (m.text || ('[' + m.kind + ']')).slice(0, 500), ts: m.ts }));
+      } catch (e) {}
+    }
+    hubSend({ type: 'sync', chats: out });
+  })();
+}
+function hubGoogleSetup() {
+  if (!GOOGLE_CLIENT_ID) return;
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.onload = () => {
+    try {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: resp => {
+          if (!resp || !resp.credential) return;
+          verifyGoogleCredential(resp.credential).then(u => {
+            localStorage.setItem('chatnest_user_v12', JSON.stringify(u));
+            hubUnlock(u);
+          }).catch(() => { $('#loginErr').textContent = 'Google sign-in could not be verified — check your internet.'; });
+        }
+      });
+      window.google.accounts.id.renderButton(document.getElementById('gsiBtn'), { theme: 'filled_black', size: 'large', text: 'continue_with', shape: 'pill' });
+      $('#gsiManual').classList.add('hidden');
+      $('#gsiShowManual').classList.remove('hidden');
+    } catch (e) {}
+  };
+  s.onerror = () => {};
+  document.head.appendChild(s);
+}
+/* verifies the Google credential with Google's own servers (no backend needed) */
+function verifyGoogleCredential(jwt) {
+  if (typeof fetch !== 'function') return Promise.reject(new Error('offline'));
+  return fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(jwt)).then(r => r.json()).then(t => {
+    if (!t || !t.email) throw new Error('bad token');
+    if (GOOGLE_CLIENT_ID && t.aud !== GOOGLE_CLIENT_ID) throw new Error('wrong app');
+    if (t.exp && t.exp * 1000 < Date.now()) throw new Error('expired');
+    return { gmail: t.email, name: t.name || (t.email.split('@')[0] || 'User').replace(/[._]+/g, ' ') };
+  });
 }
 $('#dSignout').addEventListener('click', () => {
   localStorage.removeItem('chatnest_user_v12');
@@ -3266,4 +3349,4 @@ init().catch(e => {
   })();
 </script>
 </body>
-</html>
+  </html>
