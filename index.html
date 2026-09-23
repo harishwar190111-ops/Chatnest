@@ -550,6 +550,16 @@
   .qrbox { text-align: center; padding: 10px; }
   .qrbox img { background: #fff; padding: 10px; border-radius: 12px; width: 240px; height: 240px; }
   .qrtext { color: #e9edef; font-size: 14px; margin-top: 10px; word-break: break-all; }
+  /* ===== v16: folders, archive, favorites, call quality ===== */
+  .folderchips { display: flex; gap: 8px; overflow-x: auto; padding: 10px 12px 0; }
+  .folderchips.hidden2 { display: none; }
+  .fchip { background: #202c33; color: #8696a0; border: 1px solid #2a3942; border-radius: 15px; padding: 5px 13px; font-size: 13px; white-space: nowrap; cursor: pointer; flex: none; user-select: none; }
+  .fchip.on { background: #005c4b; color: #fff; border-color: #005c4b; }
+  .chatlabel { color: #00a884; font-size: 12.5px; font-weight: 600; padding: 10px 14px 3px; }
+  #callQual { font-size: 12.5px; color: #8696a0; margin-top: 2px; min-height: 16px; }
+  .callog-row { display: flex; gap: 12px; align-items: center; }
+  .callog-ic { font-size: 20px; }
+  .callog-miss { color: #e5645c; }
 </style>
 </head>
 <body>
@@ -599,6 +609,7 @@
         <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
       </button>
     </div>
+    <div id="folderChips" class="folderchips"></div>
     <div id="chatlist"></div>
     <div id="homeEmpty">
       <div class="big">💬</div>
@@ -622,7 +633,7 @@
         <div class="avatar" style="background:rgba(255,255,255,.22)">🪺</div>
         <div>
           <div class="nm">ChatNest</div>
-          <div class="sub">Private room-based messenger</div>
+          <div class="sub">ChatNest 16 &middot; private room messenger</div>
         </div>
       </div>
     </div>
@@ -652,6 +663,14 @@
     <div class="drow" id="dPrivacy">
       <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.6 3.8 10.7 9 12 5.2-1.3 9-6.4 9-12V5l-9-4zm0 10.9h7c-.5 4.1-3.3 7.9-7 8.9V12H5V6.3l7-3.1v8.7z"/></svg></div>
       <div class="txt">Privacy</div>
+    </div>
+    <div class="drow" id="dFolders">
+      <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 4H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V8a2 2 0 00-2-2h-8l-2-2z"/></svg></div>
+      <div class="txt">Chat folders</div>
+    </div>
+    <div class="drow" id="dGSearch">
+      <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 101-1l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg></div>
+      <div class="txt">Search all chats</div>
     </div>
     <div class="drow" id="dHubToggle">
       <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1L3 5v6c0 5.6 3.8 10.7 9 12 5.2-1.3 9-6.4 9-12V5l-9-4zm0 10.9h7c-.5 4.1-3.8 7.8-7 8.9V12H5V6.3l7-3.1v8.7z"/></svg></div>
@@ -751,6 +770,7 @@
       <div id="callName"></div>
       <div id="callState">Calling…</div>
       <div id="callDur"></div>
+      <div id="callQual"></div>
     </div>
     <div id="callAvatarWrap"><div class="avatar" id="callAvatar">A</div></div>
     <div id="callActions"></div>
@@ -1195,11 +1215,27 @@ function renderChatLists() {
   const cl = $('#chatlist');
   const drawerList = $('#drawerChatList');
   cl.innerHTML = ''; drawerList.innerHTML = '';
+  renderFolderChips();
   const hasChats = S.chats.length > 0;
   $('#homeEmpty').classList.toggle('hidden', hasChats);
   $('#chatlist').classList.toggle('hidden', !hasChats);
   if (!hasChats) return;
-  S.chats.forEach(c => {
+  const folders = S.settings.folders || [];
+  const folder = folders.find(f => f.id === S.folder);
+  const visible = S.chats.filter(c => !c.archived && (!folder || folder.chatIds.indexOf(c.id) >= 0));
+  const favs = visible.filter(c => c.fav);
+  const rest = visible.filter(c => !c.fav);
+  const ordered = favs.concat(rest);
+  if (favs.length) {
+    const lab = document.createElement('div'); lab.className = 'chatlabel'; lab.textContent = 'Favorites';
+    cl.appendChild(lab);
+  }
+  if (rest.length) {
+    const lab2 = document.createElement('div'); lab2.className = 'chatlabel';
+    lab2.textContent = folder ? folder.name : 'Chats';
+    cl.appendChild(lab2);
+  }
+  ordered.forEach(c => {
     const h = NETS.get(c.id);
     const isTyping = !!(h && h.typing);
     // home row
@@ -1233,6 +1269,14 @@ function renderChatLists() {
     attachRowMenu(drow, c);
     drawerList.appendChild(drow);
   });
+  const archived = S.chats.filter(c => c.archived);
+  if (archived.length) {
+    const arow = document.createElement('div');
+    arow.className = 'drow';
+    arow.innerHTML = '<div class="txt" style="color:#8696a0">📦 Archived (' + archived.length + ')</div>';
+    arow.addEventListener('click', () => { closeDrawer(); renderArchivedScreen(); openOvl('ovlArchived'); });
+    drawerList.appendChild(arow);
+  }
 }
 async function touchChat(chatId, preview, dir) {
   const c = S.chats.find(x => x.id === chatId);
@@ -2379,6 +2423,10 @@ function attachRowMenu(el, chat) {
     try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
     try {
       const items = [{ label: chat.pinned ? 'Unpin chat' : 'Pin chat', key: 'pin' }];
+      items.push({ label: chat.fav ? 'Remove from favorites' : 'Add to favorites', key: 'fav' });
+      items.push({ label: 'Move to folder\u2026', key: 'folder' });
+      if (chat.archived) items.push({ label: 'Unarchive chat', key: 'unarch' });
+      else items.push({ label: 'Archive chat', key: 'arch' });
       if (chat.unread) items.push({ label: 'Mark as read', key: 'read' });
       items.push({ label: 'Clear messages', key: 'clear' });
       items.push({ label: 'Delete chat', key: 'del', danger: true });
@@ -2390,6 +2438,25 @@ function attachRowMenu(el, chat) {
         S.chats.sort(chatOrder);
         renderChatLists();
         toast(chat.pinned ? 'Chat pinned — it stays at the top' : 'Chat unpinned');
+      } else if (it.key === 'fav') {
+        chat.fav = !chat.fav;
+        await DB.put('chats', chat);
+        renderChatLists();
+        toast(chat.fav ? 'Added to favorites \u2014 shows at the top' : 'Removed from favorites');
+      } else if (it.key === 'folder') {
+        await folderMoveFlow(chat);
+      } else if (it.key === 'arch') {
+        chat.archived = true;
+        if (S.activeId === chat.id) goHome();
+        await DB.put('chats', chat);
+        renderChatLists();
+        toast('Chat archived \u2014 find it in the drawer, at the bottom', 'ok', 4000);
+      } else if (it.key === 'unarch') {
+        chat.archived = false;
+        await DB.put('chats', chat);
+        renderChatLists();
+        renderArchivedScreen();
+        toast('Chat unarchived');
       } else if (it.key === 'read') {
         chat.unread = 0;
         await DB.put('chats', chat);
@@ -2658,7 +2725,7 @@ async function startCall(video) {
   if (!conn) { toast('Partner is not connected yet — try again when they are online', 'err', 4000); return; }
   const stream = await ensureMedia(video);
   if (!stream) return;
-  CALL.state = 'calling'; CALL.h = h; CALL.chatId = chat.id; CALL.callId = uuid();
+  CALL.state = 'calling'; CALL.h = h; CALL.chatId = chat.id; CALL.callId = uuid(); CALL.incoming = false;
   CALL.stream = stream; CALL.remoteStream = null; CALL.video = !!video; CALL.facing = 'user';
   CALL.muted = false; CALL.camOff = false; CALL.speaker = false;
   CALL.pendingOffer = null; CALL.pendingIce = [];
@@ -2689,7 +2756,7 @@ async function handleCallOffer(h, d) {
     if (String(CALL.callId) < String(d.callId)) { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
     finishCall(null); // silently drop my outgoing call and take theirs
   } else if (CALL.state !== 'idle') { sendProto(h, { type: 'call-busy', callId: d.callId }); return; }
-  CALL.state = 'ringing'; CALL.h = h; CALL.chatId = h.chatId; CALL.callId = d.callId;
+  CALL.state = 'ringing'; CALL.h = h; CALL.chatId = h.chatId; CALL.callId = d.callId; CALL.incoming = true;
   CALL.video = !!d.video; CALL.stream = null; CALL.remoteStream = null; CALL.pc = null; CALL.facing = 'user';
   CALL.muted = false; CALL.camOff = false; CALL.speaker = false;
   CALL.pendingOffer = d.sdp; CALL.pendingIce = [];
@@ -2760,6 +2827,7 @@ function callConnected() {
   CALL.durTimer = setInterval(() => {
     if (CALL.state === 'connected') $('#callDur').textContent = fmtDur((Date.now() - CALL.t0) / 1000);
   }, 1000);
+  startQualMonitor();
   renderCallActions();
 }
 function toggleMute() {
@@ -2815,12 +2883,20 @@ function finishCall(reason) {
   callStopRing();
   clearTimeout(CALL.outTimeout);
   clearInterval(CALL.durTimer);
+  clearInterval(CALL.qualTimer);
+  if (CALL.chatId) {
+    const answered = CALL.t0 > 0;
+    const dur = answered ? (Date.now() - CALL.t0) / 1000 : 0;
+    const st = answered ? 'answered' : (reason === 'Call declined' ? 'declined' : 'missed');
+    logCall(CALL.chatId, CALL.incoming ? 'in' : 'out', CALL.video, st, dur);
+  }
+  try { const q = $('#callQual'); if (q) { q.textContent = ''; q.style.color = ''; } } catch (er) {}
   try { if (CALL.pc) CALL.pc.close(); } catch (er) {}
   if (CALL.stream) CALL.stream.getTracks().forEach(t => { try { t.stop(); } catch (er) {} });
   try { e.remote.srcObject = null; } catch (er) {}
   try { $('#callAudio').srcObject = null; } catch (er) {}
   try { e.local.srcObject = null; } catch (er) {}
-  Object.assign(CALL, { state: 'idle', h: null, chatId: null, callId: null, pc: null, stream: null, remoteStream: null, muted: false, camOff: false, speaker: false, t0: 0, durTimer: null, outTimeout: null, pendingOffer: null, pendingIce: [] });
+  Object.assign(CALL, { state: 'idle', h: null, chatId: null, callId: null, pc: null, stream: null, remoteStream: null, muted: false, camOff: false, speaker: false, t0: 0, durTimer: null, qualTimer: null, outTimeout: null, pendingOffer: null, pendingIce: [], incoming: false });
   e.scr.classList.add('hidden');
   if (reason) toast(reason);
 }
@@ -2889,6 +2965,7 @@ async function chatMenuFlow() {
   const chat = activeChat();
   if (!chat) return;
   const it = await actionSheet([
+    { label: 'Call history', key: 'calls' },
     { label: 'Search messages', key: 'search' },
     { label: 'Jump to date', key: 'jdate' },
     { label: 'Disappearing messages' + (chat.dpm ? ' (ON)' : ''), key: 'dpm' },
@@ -2904,7 +2981,8 @@ async function chatMenuFlow() {
     { label: 'Delete chat', key: 'del', danger: true }
   ], chat.name);
   if (!it) return;
-  if (it.key === 'search') searchFlow();
+  if (it.key === 'calls') { renderCallLogScreen(chat); openOvl('ovlCallLog'); }
+  else if (it.key === 'search') searchFlow();
   else if (it.key === 'jdate') jumpDateFlow();
   else if (it.key === 'dpm') await dpmFlow(chat);
   else if (it.key === 'profile') partnerProfileDlg(chat);
@@ -3106,6 +3184,7 @@ async function init() {
   S.settings.friends = (await getSetting('friends', [])) || [];
   S.settings.friendReqs = (await getSetting('friendReqs', [])) || [];
   S.settings.blockedChats = (await getSetting('blockedChats', [])) || [];
+  S.settings.folders = (await getSetting('folders', [])) || [];
   S.settings.readReceipts = await getSetting('readReceipts', true);
   S.settings.typingInd = await getSetting('typingInd', true);
   S.settings.onlineStatus = await getSetting('onlineStatus', true);
@@ -3258,6 +3337,8 @@ async function init() {
   $('#dStarred').addEventListener('click', async () => { closeDrawer(); await renderStarredScreen(); openOvl('ovlStarred'); });
   $('#dFriends').addEventListener('click', () => { closeDrawer(); renderFriendsScreen(); openOvl('ovlFriends'); });
   $('#dPrivacy').addEventListener('click', () => { closeDrawer(); openPrivacy(); });
+  $('#dFolders').addEventListener('click', () => { closeDrawer(); renderFoldersScreen(); openOvl('ovlFolders'); });
+  $('#dGSearch').addEventListener('click', () => { closeDrawer(); openGlobalSearch(); });
   $('#pfPhotoBtn').addEventListener('click', () => { try { $('#pfPhotoInput').click(); } catch (e) {} });
   $('#pfPhotoInput').addEventListener('change', pfPhotoChosen);
   $('#pfSave').addEventListener('click', saveProfileFlow);
@@ -4035,6 +4116,258 @@ function openPrivacy() {
   openOvl('ovlPrivacy');
 }
 
+
+/* ==================== v16: Part 4 (folders, archive, favorites, global search) ==================== */
+function renderFolderChips() {
+  const holder = $('#folderChips');
+  if (!holder) return;
+  const folders = S.settings.folders || [];
+  holder.innerHTML = '';
+  holder.classList.toggle('hidden2', !folders.length);
+  const all = document.createElement('div');
+  all.className = 'fchip' + (S.folder ? '' : ' on');
+  all.textContent = 'All';
+  all.addEventListener('click', () => { S.folder = null; renderChatLists(); });
+  holder.appendChild(all);
+  folders.forEach(f => {
+    const c = document.createElement('div');
+    c.className = 'fchip' + (S.folder === f.id ? ' on' : '');
+    c.textContent = f.name;
+    c.addEventListener('click', () => { S.folder = S.folder === f.id ? null : f.id; renderChatLists(); });
+    holder.appendChild(c);
+  });
+}
+async function folderMoveFlow(chat) {
+  const folders = S.settings.folders || [];
+  const items = [{ label: 'None (no folder)', key: null }];
+  folders.forEach(f => items.push({ label: f.name, key: f.id }));
+  items.push({ label: 'New folder\u2026', key: '__new' });
+  const it = await actionSheet(items, 'Move \u201c' + chat.name + '\u201d to folder');
+  if (!it) return;
+  if (it.key === '__new') {
+    const name = await promptDlg('New folder', '', '', 'Folder name');
+    if (!name) return;
+    const f = { id: uuid(), name: name.trim().slice(0, 24), chatIds: [] };
+    folders.push(f);
+    await setSetting('folders', folders);
+    S.settings.folders = folders;
+    await folderMoveFlow(chat);
+    return;
+  }
+  folders.forEach(f => {
+    const i = f.chatIds.indexOf(chat.id);
+    if (f.id === it.key) { if (i < 0) f.chatIds.push(chat.id); }
+    else if (i >= 0) f.chatIds.splice(i, 1);
+  });
+  await setSetting('folders', folders);
+  renderChatLists();
+  toast(it.key ? 'Moved to \u201c' + folders.find(f => f.id === it.key).name + '\u201d' : 'Removed from all folders', 'ok');
+}
+function renderFoldersScreen() {
+  const out = $('#foldersOut');
+  if (!out) return;
+  out.innerHTML = '';
+  const folders = S.settings.folders || [];
+  const addb = document.createElement('button');
+  addb.className = 'pbtn'; addb.textContent = 'Create new folder';
+  addb.addEventListener('click', async () => {
+    const name = await promptDlg('New folder', '', '', 'Folder name');
+    if (!name) return;
+    folders.push({ id: uuid(), name: name.trim().slice(0, 24), chatIds: [] });
+    await setSetting('folders', folders);
+    renderFoldersScreen();
+    renderChatLists();
+    toast('Folder created', 'ok');
+  });
+  out.appendChild(addb);
+  if (!folders.length) {
+    const e = document.createElement('div'); e.className = 'pdesc';
+    e.textContent = 'Folders help you group chats. Long-press a chat in the list \u2192 Move to folder.';
+    out.appendChild(e);
+    return;
+  }
+  folders.forEach(f => {
+    const row = document.createElement('div'); row.className = 'prow';
+    const who = document.createElement('div'); who.className = 'who';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = f.name;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = f.chatIds.length + ' chat' + (f.chatIds.length === 1 ? '' : 's');
+    who.appendChild(nm); who.appendChild(sub);
+    const ed = document.createElement('button'); ed.className = 'pbtn'; ed.textContent = 'Edit';
+    ed.addEventListener('click', () => folderEditFlow(f));
+    const del = document.createElement('button'); del.className = 'pbtn red'; del.style.marginLeft = '6px'; del.textContent = 'Delete';
+    del.addEventListener('click', async () => {
+      if (!(await confirmDlg('Delete folder?', '\u201c' + f.name + '\u201d will be deleted. The chats inside stay \u2014 they just move back to All.', 'Delete', true))) return;
+      const i = folders.indexOf(f);
+      if (i >= 0) folders.splice(i, 1);
+      if (S.folder === f.id) S.folder = null;
+      await setSetting('folders', folders);
+      renderFoldersScreen(); renderChatLists();
+      toast('Folder deleted');
+    });
+    row.appendChild(who); row.appendChild(ed); row.appendChild(del);
+    out.appendChild(row);
+  });
+}
+async function folderEditFlow(f) {
+  const out = $('#foldersOut');
+  const back = document.createElement('button'); back.className = 'pbtn'; back.textContent = '\u2039 Back';
+  back.addEventListener('click', () => renderFoldersScreen());
+  const ren = document.createElement('button'); ren.className = 'pbtn'; ren.style.marginLeft = '6px'; ren.textContent = 'Rename';
+  ren.addEventListener('click', async () => {
+    const name = await promptDlg('Rename folder', '', f.name, 'Folder name');
+    if (!name) return;
+    f.name = name.trim().slice(0, 24);
+    await setSetting('folders', S.settings.folders);
+    renderFoldersScreen(); renderChatLists();
+    toast('Folder renamed', 'ok');
+  });
+  out.innerHTML = '';
+  out.appendChild(back); out.appendChild(ren);
+  const lab = document.createElement('div'); lab.className = 'plabel'; lab.style.marginTop = '8px';
+  lab.textContent = 'Tap a chat to add or remove it from \u201c' + f.name + '\u201d:';
+  out.appendChild(lab);
+  S.chats.forEach(c => {
+    const row = document.createElement('div'); row.className = 'prow';
+    const who = document.createElement('div'); who.className = 'who';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
+    who.appendChild(nm);
+    const mark = document.createElement('div'); mark.className = 'nm';
+    mark.textContent = f.chatIds.indexOf(c.id) >= 0 ? '\u2713' : '';
+    mark.style.color = '#00a884';
+    row.appendChild(who); row.appendChild(mark);
+    row.addEventListener('click', async () => {
+      const i = f.chatIds.indexOf(c.id);
+      if (i >= 0) f.chatIds.splice(i, 1); else f.chatIds.push(c.id);
+      await setSetting('folders', S.settings.folders);
+      folderEditFlow(f);
+      renderChatLists();
+    });
+    out.appendChild(row);
+  });
+}
+function renderArchivedScreen() {
+  const out = $('#archivedOut');
+  if (!out) return;
+  out.innerHTML = '';
+  const arch = S.chats.filter(c => c.archived);
+  if (!arch.length) {
+    out.innerHTML = '<div class="pdesc" style="text-align:center;padding:30px 10px">No archived chats.<br>Long-press a chat \u2192 Archive chat to hide it here.</div>';
+    return;
+  }
+  arch.forEach(c => {
+    const row = document.createElement('div'); row.className = 'prow';
+    const av = document.createElement('div'); av.className = 'avatar'; av.style.background = chatColor(c);
+    av.textContent = (c.name || '?').slice(0, 1).toUpperCase();
+    const who = document.createElement('div'); who.className = 'who';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = c.lastMsg ? String(c.lastMsg).slice(0, 40) : 'No messages';
+    who.appendChild(nm); who.appendChild(sub);
+    const un = document.createElement('button'); un.className = 'pbtn'; un.textContent = 'Unarchive';
+    un.addEventListener('click', async () => {
+      c.archived = false;
+      await DB.put('chats', c);
+      renderChatLists(); renderArchivedScreen();
+      toast('Chat unarchived', 'ok');
+    });
+    row.appendChild(av); row.appendChild(who); row.appendChild(un);
+    row.addEventListener('click', ev => { if (ev.target === un) return; closeOvl('ovlArchived'); openChat(c.id); });
+    out.appendChild(row);
+  });
+}
+async function openGlobalSearch() {
+  openOvl('ovlGlobal');
+  const out = $('#globalOut');
+  const inp = $('#globalInp');
+  inp.value = '';
+  out.innerHTML = '';
+  inp.oninput = async () => {
+    const q = inp.value.trim().toLowerCase();
+    out.innerHTML = '';
+    if (q.length < 2) { out.innerHTML = '<div class="pdesc" style="text-align:center;padding:20px">Type at least 2 letters\u2026</div>'; return; }
+    const hits = [];
+    for (const c of S.chats) {
+      const ms = await DB.msgsOf(c.id);
+      for (let i = ms.length - 1; i >= 0 && hits.length < 100; i--) {
+        const m = ms[i];
+        if ((m.text || '').toLowerCase().indexOf(q) >= 0) hits.push({ c: c, m: m });
+      }
+    }
+    if (!hits.length) { out.innerHTML = '<div class="pdesc" style="text-align:center;padding:20px">No messages found</div>'; return; }
+    hits.forEach(h => {
+      const r = document.createElement('div'); r.className = 'prow';
+      const who = document.createElement('div'); who.className = 'who';
+      const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = (h.m.text || '').slice(0, 70);
+      const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = h.c.name + ' \u00b7 ' + (h.m.dir === 'me' ? 'You' : 'Partner') + ' \u00b7 ' + new Date(h.m.ts).toLocaleString();
+      who.appendChild(nm); who.appendChild(sub);
+      r.appendChild(who);
+      r.addEventListener('click', () => { closeOvl('ovlGlobal'); openChat(h.c.id).then(() => jumpToMessage(h.m.id)); });
+      out.appendChild(r);
+    });
+  };
+  inp.oninput();
+}
+
+/* ==================== v16: Part 5 (call quality + call history) ==================== */
+function startQualMonitor() {
+  clearInterval(CALL.qualTimer);
+  const el = $('#callQual');
+  if (el) { el.textContent = ''; el.style.color = ''; }
+  CALL.qualTimer = setInterval(async () => {
+    if (CALL.state !== 'connected' || !CALL.pc) return;
+    let rtt = -1;
+    try {
+      const st = await CALL.pc.getStats();
+      st.forEach(r => { if (r.type === 'candidate-pair' && r.state === 'succeeded' && typeof r.currentRoundTripTime === 'number') rtt = Math.max(rtt, r.currentRoundTripTime * 1000); });
+    } catch (e) {}
+    const q = $('#callQual');
+    if (!q) return;
+    if (rtt < 0) { q.textContent = ''; return; }
+    let bars, label, col;
+    if (rtt < 180) { bars = '\u25CF\u25CF\u25CF'; label = 'Excellent'; col = '#4bd663'; }
+    else if (rtt < 400) { bars = '\u25CF\u25CF\u25CB'; label = 'Good'; col = '#f5c518'; }
+    else { bars = '\u25CF\u25CB\u25CB'; label = 'Weak connection'; col = '#e5645c'; }
+    q.textContent = 'Signal: ' + bars + ' ' + label + ' (' + Math.round(rtt) + ' ms)';
+    q.style.color = col;
+  }, 3000);
+}
+async function logCall(chatId, dir, video, state, dur) {
+  try {
+    const k = 'calls_' + chatId;
+    const arr = (await getSetting(k, [])) || [];
+    arr.push({ dir: dir, video: !!video, ts: Date.now(), state: state, dur: dur || 0 });
+    while (arr.length > 100) arr.shift();
+    await setSetting(k, arr);
+  } catch (e) {}
+}
+function renderCallLogScreen(chat) {
+  const out = $('#callLogOut');
+  if (!out) return;
+  out.innerHTML = '';
+  const lab = document.createElement('div'); lab.className = 'plabel'; lab.textContent = 'Calls in \u201c' + chat.name + '\u201d';
+  out.appendChild(lab);
+  getSetting('calls_' + chat.id, []).then(arr => {
+    arr = arr || [];
+    if (!arr.length) {
+      out.innerHTML = '<div class="pdesc" style="text-align:center;padding:30px 10px">No calls yet in this chat.</div>';
+      return;
+    }
+    arr.slice().reverse().forEach(c => {
+      const row = document.createElement('div'); row.className = 'prow';
+      const ic = document.createElement('div'); ic.className = 'callog-ic'; ic.textContent = c.video ? '\uD83D\uDCF9' : '\uD83D\uDCDE';
+      const who = document.createElement('div'); who.className = 'who';
+      const nm = document.createElement('div'); nm.className = 'nm';
+      nm.textContent = (c.dir === 'in' ? 'Incoming' : 'Outgoing') + (c.video ? ' video' : ' voice') + ' call';
+      const sub = document.createElement('div'); sub.className = 'sub';
+      if (c.state === 'answered') sub.textContent = 'Answered \u00b7 ' + fmtDur(c.dur) + ' \u00b7 ' + new Date(c.ts).toLocaleString();
+      else if (c.state === 'declined') { sub.textContent = 'Declined \u00b7 ' + new Date(c.ts).toLocaleString(); sub.className = 'sub callog-miss'; }
+      else { sub.textContent = 'Missed \u00b7 ' + new Date(c.ts).toLocaleString(); sub.className = 'sub callog-miss'; }
+      who.appendChild(nm); who.appendChild(sub);
+      row.appendChild(ic); row.appendChild(who);
+      out.appendChild(row);
+    });
+  });
+}
+
 function doSend() {
   const inp = $('#msgInput');
   const v = inp.value.trim();
@@ -4146,5 +4479,25 @@ init().catch(e => {
     <video id="qrVideo" class="hidden" style="width:100%;border-radius:12px" playsinline></video>
   </div>
 </div>
+<!-- ===== v16 feature screens ===== -->
+<div id="ovlFolders" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlFolders">‹</button><span>Chat folders</span></div>
+  <div class="fsbody" id="foldersOut"></div>
+</div>
+<div id="ovlArchived" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlArchived">‹</button><span>Archived chats</span></div>
+  <div class="fsbody" id="archivedOut"></div>
+</div>
+<div id="ovlGlobal" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlGlobal">‹</button><span>Search all chats</span></div>
+  <div class="fsbody">
+    <input class="inp" id="globalInp" placeholder="Search every message in every chat…">
+    <div id="globalOut"></div>
+  </div>
+</div>
+<div id="ovlCallLog" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlCallLog">‹</button><span>Call history</span></div>
+  <div class="fsbody" id="callLogOut"></div>
+</div>
 </body>
-        </html>
+  </html>
