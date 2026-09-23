@@ -499,10 +499,66 @@
     border-radius: 50%; animation: spin 1s linear infinite;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* ---------- Google login ---------- */
+  #loginScreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 9999; background: #0b141a; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .loginBox { text-align: center; max-width: 340px; width: 100%; }
+  .loginLogo svg { width: 74px; height: 74px; background: #008069; border-radius: 22px; padding: 15px; box-shadow: 0 8px 30px rgba(0,128,105,.45); }
+  #loginScreen h1 { color: #fff; margin: 18px 0 6px; font-size: 30px; letter-spacing: .5px; }
+  .loginSub { color: #8696a0; font-size: 14px; margin-bottom: 26px; }
+  #btnGoogle { display: inline-flex; align-items: center; gap: 10px; background: #fff; color: #3c4043; border: none; border-radius: 28px; padding: 12px 22px; font-size: 15px; font-weight: 600; font-family: inherit; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35); }
+  #btnGoogle:active { transform: scale(.97); }
+  #btnGoogle svg { width: 20px; height: 20px; }
+  #btnGoogle.busy { opacity: .6; pointer-events: none; }
+  .loginErr { color: #ff6b6b; font-size: 13px; min-height: 18px; margin-top: 14px; }
+  .loginPrivacy { color: #667781; font-size: 12px; line-height: 1.5; margin-top: 22px; }
+  .loginSetup { color: #ffb84d; font-size: 13px; margin-top: 18px; line-height: 1.5; }
+  .loginOld { display: block; color: #00a884; font-size: 13px; margin-top: 18px; }
+  /* avatar photos + online dots */
+  .avatar { position: relative; }
+  .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; position: absolute; top: 0; left: 0; }
+  .cdot { position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #111b21; }
+  .cdot.on { background: #25d366; } .cdot.off { background: #8696a0; }
+  /* people picker */
+  #userPicker { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 900; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .upBox { background: #111b21; border-radius: 16px; width: 100%; max-width: 380px; max-height: 80vh; display: flex; flex-direction: column; overflow: hidden; }
+  .upHead { padding: 16px 18px 10px; color: #e9edef; font-weight: 700; }
+  .upSearch { margin: 0 14px 10px; padding: 10px 14px; border-radius: 22px; border: none; background: #2a3942; color: #e9edef; font-size: 14px; font-family: inherit; outline: none; }
+  .upList { overflow-y: auto; }
+  .upRow { display: flex; align-items: center; gap: 12px; padding: 10px 16px; cursor: pointer; }
+  .upRow:active { background: #2a3942; }
+  .upRow .avatar { width: 40px; height: 40px; font-size: 17px; flex: none; }
+  .upRow .nm { color: #e9edef; font-size: 15px; }
+  .upRow .sub { color: #8696a0; font-size: 12.5px; }
+  .upEmpty { color: #8696a0; text-align: center; padding: 26px 12px; font-size: 13.5px; }
+  /* drawer account + privacy */
+  #drawerAccount { display: flex; align-items: center; gap: 10px; padding: 12px 4px 6px; }
+  #drawerAccount .avatar { width: 38px; height: 38px; font-size: 16px; }
+  #drawerAccount .nm { color: #e9edef; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #drawerAccount .sub { color: #8696a0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dprivacy { color: #667781; font-size: 11.5px; line-height: 1.5; padding: 10px 4px 4px; border-top: 1px solid rgba(134,150,160,.18); margin-top: 10px; }
 </style>
 </head>
 <body>
 <div id="shell">
+
+  <!-- ============ LOGIN (Google account) ============ -->
+  <div id="loginScreen" class="hidden">
+    <div class="loginBox">
+      <div class="loginLogo">
+        <svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.9 2 11.7c0 2.7 1.4 5.1 3.6 6.8-.1 1-.5 2.6-1.5 3.5 1.9-.2 3.6-1.1 4.6-1.9 1 .2 2.1.4 3.3.4 5.5 0 10-3.9 10-8.7S17.5 3 12 3z"/></svg>
+      </div>
+      <h1>ChatNest</h1>
+      <div class="loginSub">Sign in to keep your chats synced and safe in your account</div>
+      <button id="btnGoogle" type="button">
+        <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C36.9 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+        <span>Continue with Google</span>
+      </button>
+      <div id="loginErr" class="loginErr"></div>
+      <div id="loginSetup" class="loginSetup hidden">The Google login is not set up on this page yet.<br>Open <b>SETUP-GUIDE.md</b> and follow the steps, then upload the files again.</div>
+      <div class="loginPrivacy">Your account info and chat history are stored in the ChatNest backend so you can access them from any device. Authorized administrators may have access to stored conversations — please don't enter highly sensitive information. You can delete your own chats anytime.</div>
+      <a id="loginOld" class="loginOld hidden" href="#">Continue without account (old ChatNest mode)</a>
+    </div>
+  </div>
 
   <!-- ============ LOCK SCREEN ============ -->
   <div id="lock" class="hidden">
@@ -563,6 +619,12 @@
       <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.4 13c0-.3.1-.7.1-1s0-.7-.1-1l2.1-1.7c.2-.2.2-.4.1-.6l-2-3.5c-.1-.2-.3-.3-.5-.2l-2.5 1c-.5-.4-1.1-.7-1.7-1l-.4-2.6c0-.2-.2-.4-.5-.4h-4c-.2 0-.4.2-.5.4l-.4 2.6c-.6.2-1.2.6-1.7 1l-2.5-1c-.2-.1-.4 0-.5.2l-2 3.5c-.1.2-.1.5.1.6L4.5 11c0 .3-.1.7-.1 1s0 .7.1 1l-2.1 1.7c-.2.2-.2.4-.1.6l2 3.5c.1.2.3.3.5.2l2.5-1c.5.4 1.1.7 1.7 1l.4 2.6c0 .2.2.4.5.4h4c.2 0 .4-.2.5-.4l.4-2.6c.6-.2 1.2-.6 1.7-1l2.5 1c.2.1.4 0 .5-.2l2-3.5c.1-.2.1-.5-.1-.6L19.4 13zM12 15.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7z"/></svg></div>
       <div class="txt">Settings</div>
     </div>
+    <div class="drow" id="dSignout">
+      <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.4 1.4 2.6 2.6H7v2h11.2l-2.6 2.6L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg></div>
+      <div class="txt">Sign out</div>
+    </div>
+    <div id="drawerAccount" class="hidden"></div>
+    <div class="dprivacy">Chats are stored in your ChatNest account. Authorized administrators may have access to stored conversations. Please avoid sharing highly sensitive information.</div>
     <div style="height:14px"></div>
   </aside>
 
@@ -751,6 +813,9 @@
   <input type="file" id="fileInput" class="hidden">
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
 'use strict';
 /* =====================================================
@@ -1105,7 +1170,11 @@ function renderChatLists() {
     // home row
     const row = document.createElement('div');
     row.className = 'chatrow';
-    const av = document.createElement('div'); av.className = 'avatar'; av.style.background = chatColor(c); av.textContent = (c.name || '?').slice(0, 1).toUpperCase();
+    const av = document.createElement('div'); av.className = 'avatar'; av.style.background = chatColor(c);
+    if (c.avatarPhoto) { const im = document.createElement('img'); im.src = c.avatarPhoto; im.alt = ''; av.appendChild(im); }
+    else av.textContent = (c.name || '?').slice(0, 1).toUpperCase();
+    const pu = c.peerUid ? CLOUD.users.get(c.peerUid) : null;
+    if (pu) { const dot = document.createElement('span'); dot.className = 'cdot ' + (cloudIsOnline(pu) ? 'on' : 'off'); av.appendChild(dot); }
     const mid = document.createElement('div'); mid.className = 'mid';
     const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
     const prev = document.createElement('div'); prev.className = 'prev';
@@ -1708,7 +1777,7 @@ function setStatus(h, kind) {
 
 async function connectNet(h, chat) {
   const tok = ++h.token;
-  h.room = roomKey(chat.name);
+  h.room = roomKey(chat.roomKey || chat.name);
   setStatus(h, 'connecting');
   let PeerLib;
   try { PeerLib = await loadPeerLib(); }
@@ -1914,6 +1983,7 @@ async function receiveText(h, d) {
     await appendMsg(msg);
     beep();
     sendSeen(h, [msg.id]);
+    if (chat) cloudSeen(chat);
   } else {
     if (chat) { chat.unread = (chat.unread || 0) + 1; await DB.put('chats', chat); }
     if (document.visibilityState === 'visible') beep();
@@ -2038,6 +2108,7 @@ async function sendText(text) {
   const h = getNet(chat);
   stopTypingOut();
   await trySendMsg(msg, h);
+  cloudSendText(msg, chat);
   if (!h.conns.length && Date.now() - lastWaitToast > 15000) {
     lastWaitToast = Date.now();
     toast('Waiting for partner — message will send automatically when connected', 'ok', 3500);
@@ -2689,7 +2760,8 @@ async function openChat(id) {
   showScreen('chatview');
   $('#chatName').textContent = chat.name;
   const av = $('#chatAvatar');
-  av.textContent = (chat.name || '?').slice(0, 1).toUpperCase();
+  if (chat.avatarPhoto) { av.innerHTML = ''; const im = document.createElement('img'); im.src = chat.avatarPhoto; av.appendChild(im); }
+  else av.textContent = (chat.name || '?').slice(0, 1).toUpperCase();
   av.style.background = chatColor(chat);
   applyChatBg();
   const h = getNet(chat);
@@ -2701,8 +2773,11 @@ async function openChat(id) {
   const all = await DB.msgsOf(chat.id);
   const unseen = all.filter(m => m.dir === 'them').map(m => m.id);
   sendSeen(h, unseen);
+  cloudSeen(chat);
+  cloudListen(chat);
 }
 function goHome() {
+  cloudUnlisten();
   stopTypingOut();
   clearReply();
   S.activeId = null;
@@ -2718,17 +2793,30 @@ function closeDrawer() { $('#drawer').classList.remove('show'); $('#drawerOverla
 
 /* ---------------- chat actions ---------------- */
 async function newChatFlow() {
+  if (!CLOUD.on) { newRoomChatFlow(); return; }
+  const pick = await actionSheet([
+    { label: 'Pick a ChatNest user (Google account)', key: 'user' },
+    { label: 'Room chat — connect by a secret name', key: 'room' }
+  ], 'Start a new chat');
+  if (!pick) return;
+  if (pick.key === 'user') cloudUserPicker();
+  else newRoomChatFlow();
+}
+async function newRoomChatFlow() {
   const name = await promptDlg('New chat', 'Both people must create a chat with the exact same name to connect.', '', 'e.g. Me & Sarah', 'The chat name is a private room key — share it only with the person you chat with.');
   if (!name) return;
   const nn = normName(name);
   if (!nn) { toast('Please enter a chat name', 'err'); return; }
-  if (S.chats.some(c => normName(c.name) === nn)) { toast('You already have a chat with this name', 'err'); return; }
-  const chat = { id: uuid(), name: name.trim(), created: Date.now(), lastTs: Date.now(), unread: 0 };
-  S.chats.unshift(chat);
-  await DB.put('chats', chat);
+  let chat = S.chats.find(c => normName(c.name) === nn);
+  if (!chat) {
+    chat = { id: uuid(), name: name.trim(), created: Date.now(), lastTs: Date.now(), unread: 0 };
+    S.chats.unshift(chat);
+    await DB.put('chats', chat);
+  }
   renderChatLists();
+  cloudUpgradeRoom(chat); // sync this chat's history to your account
   getNet(chat); // start connecting right away
-  toast('Chat created. Share the exact name "' + chat.name + '" with the other person.', 'ok', 5000);
+  if (!chat.cloudCid) toast('Chat created. Share the exact name "' + chat.name + '" with the other person.', 'ok', 5000);
   openChat(chat.id);
 }
 async function chatMenuFlow() {
@@ -3078,8 +3166,313 @@ async function init() {
     }
   });
 
+  cloudBoot();
+
   window.addEventListener('beforeunload', () => { destroyAllNets(); });
 }
+
+/* ==================== CLOUD (Google account + backend sync) ====================
+   Firebase is loaded from the official Google CDN. Fill FB_CONFIG below with
+   your own Firebase project values (see SETUP-GUIDE.md) — nothing secret goes
+   in this file; access control happens server-side in firestore.rules. */
+var FB_CONFIG = {
+  apiKey: 'PASTE_API_KEY_HERE',
+  authDomain: 'PASTE_AUTH_DOMAIN_HERE',
+  projectId: 'PASTE_PROJECT_ID_HERE',
+  storageBucket: 'PASTE_STORAGE_BUCKET_HERE',
+  messagingSenderId: 'PASTE_SENDER_ID_HERE',
+  appId: 'PASTE_APP_ID_HERE'
+};
+const CLOUD = { on: false, uid: null, user: null, db: null, users: new Map(), cids: new Map(),
+  unsubMsgs: null, unsubConv: null, hbTimer: null, msgSeenIds: new Set() };
+function cloudConfigured() {
+  return !!(FB_CONFIG.apiKey && FB_CONFIG.apiKey.indexOf('PASTE_') !== 0);
+}
+function cloudIsOnline(u) { return !!(u && (Date.now() - (u.lastActiveAt || 0) < 120000)); }
+function cloudSignOut() { try { firebase.auth().signOut(); } catch (e) {} }
+
+function cloudBoot() {
+  const ls = $('#loginScreen');
+  const ready = cloudConfigured() && typeof firebase !== 'undefined' && firebase.initializeApp && firebase.firestore;
+  if (!ready) {
+    ls.classList.remove('hidden');
+    $('#btnGoogle').classList.add('hidden');
+    $('#loginSetup').classList.remove('hidden');
+    const oldLink = $('#loginOld');
+    oldLink.classList.remove('hidden');
+    oldLink.onclick = e => { e.preventDefault(); ls.classList.add('hidden'); };
+    return;
+  }
+  $('#btnGoogle').classList.remove('hidden');
+  try { firebase.initializeApp(FB_CONFIG); } catch (e) {}
+  CLOUD.db = firebase.firestore();
+  try { if (CLOUD.db.enablePersistence) CLOUD.db.enablePersistence({ synchronizeTabs: true }).catch(function(){}); } catch (e) {}
+  try { firebase.auth().getRedirectResult().catch(function(){}); } catch (e) {}
+  firebase.auth().onAuthStateChanged(u => {
+    if (u) { ls.classList.add('hidden'); $('#loginErr').textContent = ''; cloudStart(u); }
+    else { cloudStop(); ls.classList.remove('hidden'); }
+  });
+  $('#btnGoogle').onclick = async () => {
+    if (typeof firebase === 'undefined' || !firebase.auth) { $('#loginErr').textContent = 'The login service did not load — check your internet and refresh.'; return; }
+    const btn = $('#btnGoogle');
+    btn.classList.add('busy');
+    try {
+      await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider());
+    } catch (e) {
+      const code = e && e.code || '';
+      if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user') {
+        try { await firebase.auth().signInWithRedirect(new firebase.auth.GoogleAuthProvider()); return; } catch (e2) {}
+      }
+      if (code === 'auth/unauthorized-domain') $('#loginErr').textContent = 'This web address is not approved yet — add it in Firebase (setup guide, step 6).';
+      else if (code === 'auth/network-request-failed') $('#loginErr').textContent = 'No internet connection. Please try again.';
+      else if (code === 'auth/cancelled-popup-request' || code === 'auth/popup-closed-by-user') { /* user closed it */ }
+      else $('#loginErr').textContent = 'Sign-in did not complete. Please try again.';
+    }
+    btn.classList.remove('busy');
+  };
+  const oldLink = $('#loginOld');
+  oldLink.classList.add('hidden');
+  oldLink.onclick = null;
+  $('#loginSetup').classList.add('hidden');
+}
+async function cloudStart(u) {
+  CLOUD.on = true; CLOUD.uid = u.uid;
+  CLOUD.user = { name: u.displayName || (u.email || '').split('@')[0] || 'User', email: u.email || '', photo: u.photoURL || '' };
+  try {
+    const ref = CLOUD.db.collection('users').doc(u.uid);
+    const snap = await ref.get();
+    const now = Date.now();
+    if (!snap.exists) {
+      await ref.set({ uid: u.uid, gid: (u.providerData && u.providerData[0] && u.providerData[0].uid) || '',
+        name: CLOUD.user.name, email: CLOUD.user.email, photo: CLOUD.user.photo,
+        createdAt: now, lastLoginAt: now, lastActiveAt: now, status: 'active' });
+    } else {
+      await ref.update({ name: CLOUD.user.name, email: CLOUD.user.email, photo: CLOUD.user.photo, lastLoginAt: now, lastActiveAt: now });
+    }
+  } catch (e) {}
+  // drawer account card
+  try {
+    const da = $('#drawerAccount');
+    da.classList.remove('hidden');
+    da.innerHTML = '';
+    const av = document.createElement('div'); av.className = 'avatar'; av.style.background = '#008069';
+    if (CLOUD.user.photo) { const im = document.createElement('img'); im.src = CLOUD.user.photo; av.appendChild(im); }
+    else av.textContent = (CLOUD.user.name || '?').slice(0, 1).toUpperCase();
+    const who = document.createElement('div'); who.className = 'who';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = CLOUD.user.name;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = CLOUD.user.email;
+    who.appendChild(nm); who.appendChild(sub);
+    da.appendChild(av); da.appendChild(who);
+  } catch (e) {}
+  clearInterval(CLOUD.hbTimer);
+  CLOUD.hbTimer = setInterval(cloudHeartbeat, 45000);
+  cloudHeartbeat();
+  try {
+    CLOUD.db.collection('users').onSnapshot(s => {
+      CLOUD.users = new Map();
+      s.forEach(d => CLOUD.users.set(d.id, d.data()));
+      renderChatLists();
+    }, () => {});
+  } catch (e) {}
+  try {
+    CLOUD.db.collection('conversations').where('members.' + CLOUD.uid, '==', true).onSnapshot(s => {
+      s.forEach(d => cloudUpsertChat(d.id, d.data()));
+      renderChatLists();
+    }, () => {});
+  } catch (e) {}
+}
+function cloudHeartbeat() {
+  if (!CLOUD.on) return;
+  try { CLOUD.db.collection('users').doc(CLOUD.uid).update({ lastActiveAt: Date.now() }); } catch (e) {}
+}
+function cloudStop() {
+  clearInterval(CLOUD.hbTimer);
+  cloudUnlisten();
+  CLOUD.on = false; CLOUD.uid = null;
+}
+function cloudUpsertChat(cid, data) {
+  let chat = S.chats.find(c => c.cloudCid === cid);
+  if (!chat && data.room && data.room.indexOf('r:') === 0) {
+    chat = S.chats.find(c => !c.cloudCid && normName(c.name) === data.room.slice(2));
+  }
+  if (!chat) {
+    chat = { id: uuid(), name: cloudChatName(data), created: data.createdAt || Date.now(), lastTs: data.updatedAt || Date.now(), unread: 0 };
+    S.chats.push(chat);
+  }
+  if (!chat.cloudCid) { chat.cloudCid = cid; DB.put('chats', chat); }
+  CLOUD.cids.set(cid, chat.id);
+  if (data.room && data.room.indexOf('d:') === 0) {
+    const nm = cloudChatName(data);
+    if (nm && chat.name !== nm) { chat.name = nm; DB.put('chats', chat); }
+    const other = cloudOtherUid(data);
+    if (other && other !== chat.peerUid) { chat.peerUid = other; const ou = CLOUD.users.get(other); chat.avatarPhoto = (ou && ou.photo) || chat.avatarPhoto || ''; DB.put('chats', chat); }
+    if (!chat.roomKey) { chat.roomKey = data.room; DB.put('chats', chat); }
+  }
+  if (data.updatedAt && data.updatedAt > (chat.lastTs || 0)) chat.lastTs = data.updatedAt;
+}
+function cloudOtherUid(data) {
+  if (!data || !data.members) return null;
+  for (const k in data.members) { if (k !== CLOUD.uid) return k; }
+  return null;
+}
+function cloudChatName(data) {
+  if (data.members) {
+    for (const k in data.members) {
+      if (k !== CLOUD.uid) { const u = CLOUD.users.get(k); if (u && u.name) return u.name; }
+    }
+  }
+  return data.title || 'Chat';
+}
+async function cloudFindConv(room) {
+  const qs = await CLOUD.db.collection('conversations').where('room', '==', room).limit(1).get();
+  let id = null;
+  qs.forEach(d => { if (!id) id = d.id; });
+  return id;
+}
+async function cloudUpgradeRoom(chat) {
+  if (!CLOUD.on || !chat || chat.cloudCid) return;
+  try {
+    const room = 'r:' + normName(chat.name);
+    let cid = await cloudFindConv(room);
+    if (!cid) {
+      const now = Date.now();
+      const ref = await CLOUD.db.collection('conversations').add({ members: { [CLOUD.uid]: true }, room, title: chat.name, createdBy: CLOUD.uid, createdAt: now, updatedAt: now, lastText: '', lastFrom: '', messageCount: 0 });
+      cid = ref.id;
+    }
+    await CLOUD.db.collection('conversations').doc(cid).set({ ['members.' + CLOUD.uid]: true }, { merge: true });
+    chat.cloudCid = cid; CLOUD.cids.set(cid, chat.id);
+    await DB.put('chats', chat);
+    toast('This chat is now synced to your account', 'ok');
+  } catch (e) { toast('Cloud sync for this chat could not be set up', 'err'); }
+}
+async function cloudStartDirect(other) {
+  if (!CLOUD.on) return;
+  try {
+    const room = 'd:' + [CLOUD.uid, other.uid].sort().join(':');
+    let cid = await cloudFindConv(room);
+    if (!cid) {
+      const now = Date.now();
+      const ref = await CLOUD.db.collection('conversations').add({ members: { [CLOUD.uid]: true, [other.uid]: true }, room, title: other.name || 'Chat', createdBy: CLOUD.uid, createdAt: now, updatedAt: now, lastText: '', lastFrom: '', messageCount: 0 });
+      cid = ref.id;
+    }
+    await CLOUD.db.collection('conversations').doc(cid).set({ ['members.' + CLOUD.uid]: true, ['members.' + other.uid]: true, title: other.name || 'Chat' }, { merge: true });
+    let chat = S.chats.find(c => c.cloudCid === cid);
+    if (!chat) {
+      chat = { id: uuid(), name: other.name || 'Chat', created: Date.now(), lastTs: Date.now(), unread: 0,
+        cloudCid: cid, roomKey: room, peerUid: other.uid, avatarPhoto: other.photo || '' };
+      S.chats.unshift(chat);
+      await DB.put('chats', chat);
+    }
+    renderChatLists();
+    getNet(chat);
+    openChat(chat.id);
+  } catch (e) { toast('Could not open that chat \u2014 check your internet', 'err'); }
+}
+function cloudUserPicker() {
+  let ov = $('#userPicker');
+  if (ov) { ov.classList.remove('hidden'); renderUserPickerList(); return; }
+  ov = document.createElement('div');
+  ov.id = 'userPicker';
+  ov.innerHTML = '<div class="upBox"><div class="upHead">Pick a ChatNest user</div><input class="upSearch" placeholder="Search name or email" /><div class="upList"></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov) ov.classList.add('hidden'); });
+  const inp = ov.querySelector('.upSearch');
+  inp.addEventListener('input', renderUserPickerList);
+  setTimeout(() => { try { inp.focus(); } catch (e) {} }, 50);
+  renderUserPickerList();
+}
+function renderUserPickerList() {
+  const ov = $('#userPicker'); if (!ov) return;
+  const q = (ov.querySelector('.upSearch').value || '').toLowerCase();
+  const list = ov.querySelector('.upList'); list.innerHTML = '';
+  const rows = [];
+  CLOUD.users.forEach((u, uid) => { if (uid !== CLOUD.uid) rows.push(Object.assign({ uid: uid }, u)); });
+  rows.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  const filtered = rows.filter(u => !q || (u.name || '').toLowerCase().indexOf(q) >= 0 || (u.email || '').toLowerCase().indexOf(q) >= 0);
+  if (!rows.length) {
+    const d = document.createElement('div'); d.className = 'upEmpty';
+    d.textContent = 'No other ChatNest users yet \u2014 ask them to sign in to ChatNest once.';
+    list.appendChild(d); return;
+  }
+  if (!filtered.length) {
+    const d = document.createElement('div'); d.className = 'upEmpty';
+    d.textContent = 'Nobody matches your search.';
+    list.appendChild(d); return;
+  }
+  filtered.forEach(u => {
+    const r = document.createElement('div'); r.className = 'upRow';
+    const av = document.createElement('div'); av.className = 'avatar';
+    av.style.background = 'hsl(' + (((u.uid || 'x').split('').reduce((a, c) => a + c.charCodeAt(0), 0) * 7) % 360) + ',40%,45%)';
+    if (u.photo) { const im = document.createElement('img'); im.src = u.photo; im.alt = ''; av.appendChild(im); }
+    else av.textContent = (u.name || '?').slice(0, 1).toUpperCase();
+    if (cloudIsOnline(u)) { const dot = document.createElement('span'); dot.className = 'cdot on'; av.appendChild(dot); }
+    const who = document.createElement('div');
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = u.name || 'User';
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = u.email || '';
+    who.appendChild(nm); who.appendChild(sub);
+    r.appendChild(av); r.appendChild(who);
+    r.addEventListener('click', async () => { ov.classList.add('hidden'); await cloudStartDirect(u); });
+    list.appendChild(r);
+  });
+}
+async function cloudSendText(msg, chat) {
+  if (!CLOUD.on || !chat || !chat.cloudCid) return;
+  const cid = chat.cloudCid;
+  try {
+    await CLOUD.db.collection('conversations').doc(cid).collection('messages').doc(msg.id)
+      .set({ id: msg.id, senderId: CLOUD.uid, senderName: CLOUD.user.name, kind: 'text', text: msg.text, ts: msg.ts, reply: msg.replyTo || null });
+    await CLOUD.db.collection('conversations').doc(cid)
+      .set({ updatedAt: msg.ts, lastText: (msg.text || '').slice(0, 120), lastFrom: CLOUD.uid,
+        messageCount: firebase.firestore.FieldValue.increment(1), title: chat.name,
+        ['members.' + CLOUD.uid]: true }, { merge: true });
+    if (msg.status === 'queued' || msg.status === 'sending') { msg.status = 'sent'; await DB.put('messages', msg); refreshBubble(msg); }
+  } catch (e) { /* stays queued \u2014 Firestore syncs it automatically when back online */ }
+}
+function cloudSeen(chat) {
+  if (!CLOUD.on || !chat || !chat.cloudCid) return;
+  try { CLOUD.db.collection('conversations').doc(chat.cloudCid).set({ ['lastSeen.' + CLOUD.uid]: Date.now() }, { merge: true }); } catch (e) {}
+}
+function cloudUnlisten() {
+  try { if (CLOUD.unsubMsgs) CLOUD.unsubMsgs(); } catch (e) {}
+  try { if (CLOUD.unsubConv) CLOUD.unsubConv(); } catch (e) {}
+  CLOUD.unsubMsgs = null; CLOUD.unsubConv = null;
+}
+function cloudListen(chat) {
+  cloudUnlisten();
+  if (!CLOUD.on || !chat || !chat.cloudCid) return;
+  const cid = chat.cloudCid;
+  try {
+    CLOUD.unsubMsgs = CLOUD.db.collection('conversations').doc(cid).collection('messages')
+      .orderBy('ts', 'desc').limit(30).onSnapshot(s => {
+        const h = getNet(chat);
+        s.forEach(d => {
+          const m = d.data();
+          if (!m || m.senderId === CLOUD.uid) return;
+          if (CLOUD.msgSeenIds.has(m.id)) return;
+          CLOUD.msgSeenIds.add(m.id);
+          receiveText(h, { id: m.id, text: m.text, ts: m.ts, reply: m.reply });
+        });
+      }, () => {});
+    CLOUD.unsubConv = CLOUD.db.collection('conversations').doc(cid).onSnapshot(s => {
+      const data = s.data(); if (!data) return;
+      const other = cloudOtherUid(data);
+      const seenAt = data.lastSeen ? data.lastSeen[other] : 0;
+      if (seenAt) cloudApplySeen(chat, seenAt);
+    }, () => {});
+  } catch (e) {}
+}
+async function cloudApplySeen(chat, seenAt) {
+  try {
+    const all = await DB.msgsOf(chat.id);
+    for (const m of all) {
+      if (m.dir === 'me' && m.ts <= seenAt && (m.status === 'sent' || m.status === 'sending' || m.status === 'queued')) {
+        m.status = 'seen'; await DB.put('messages', m); refreshBubble(m);
+      }
+    }
+  } catch (e) {}
+}
+$('#dSignout').addEventListener('click', () => { closeDrawer(); cloudSignOut(); });
+
 function doSend() {
   const inp = $('#msgInput');
   const v = inp.value.trim();
