@@ -448,7 +448,14 @@
   #replyBar .rq-name { color: var(--green); font-size: 12.5px; font-weight: 600; }
   #replyBar .rq-text { color: #54656f; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #replyBar .rq-cancel { color: #54656f; width: 34px; height: 34px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 18px; }
-  .bquote { border-left: 4px solid var(--green); background: rgba(0,0,0,.05); border-radius: 6px; padding: 4px 9px; margin: 1px 0 4px; overflow: hidden; }
+  .bquote { border-left: 4px solid var(--green); background: rgba(0,0,0,.05); border-radius: 6px; padding: 4px 9px; margin: 1px 0 4px; overflow: hidden; cursor: pointer; }
+  /* WhatsApp-style green flash when you tap a quoted reply */
+  .bubble.flashquote::after {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    border-radius: inherit; background: rgba(37, 211, 102, .45);
+    pointer-events: none; animation: quoteFlash 1.6s ease-out forwards;
+  }
+  @keyframes quoteFlash { 0% { opacity: 1; } 40% { opacity: 1; } 100% { opacity: 0; } }
   .bquote .bq-name { color: #027e63; font-weight: 600; font-size: 12.5px; }
   .bquote .bq-text { color: #54656f; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .fname { font-size: 14px; padding: 4px 2px; word-break: break-all; }
@@ -1171,7 +1178,7 @@ function makeBubble(msg) {
 function fillBubble(bub, msg) {
   bub.innerHTML = '';
   if (msg.replyTo) {
-    const q = document.createElement('div'); q.className = 'bquote';
+    const q = document.createElement('div'); q.className = 'bquote'; q.dataset.qid = msg.replyTo.id || '';
     const qn = document.createElement('div'); qn.className = 'bq-name';
     qn.textContent = msg.dir === 'me' ? 'You' : quoteAuthorName(msg.chatId);
     const qt = document.createElement('div'); qt.className = 'bq-text';
@@ -1500,6 +1507,29 @@ function refreshBubble(msg) {
   if (!el) return;
   const bub = el.querySelector('.bubble');
   if (bub) fillBubble(bub, msg);
+}
+/* WhatsApp-style: tapping a quoted reply scrolls to the original message and
+   flashes it green. If the original is older than the visible window, the
+   window is widened until the message is rendered. */
+async function jumpToMessage(id) {
+  if (!id) return;
+  let el = $('#messages .msg[data-id="' + id + '"]');
+  if (!el) {
+    const msgs = await DB.msgsOf(S.activeId);
+    const idx = msgs.findIndex(m => m.id === id);
+    if (idx < 0) { toast('Original message not found'); return; }
+    if (msgs.length - idx > MSG_WIN) { MSG_WIN = msgs.length - idx; await renderMessages(true); }
+    el = $('#messages .msg[data-id="' + id + '"]');
+    if (!el) { toast('Original message not found'); return; }
+  }
+  try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (err) { try { el.scrollIntoView(); } catch (e2) {} }
+  const bub = el.querySelector('.bubble');
+  if (bub) {
+    bub.classList.remove('flashquote');
+    void bub.offsetWidth; /* restart the animation if it is already showing */
+    bub.classList.add('flashquote');
+    setTimeout(() => bub.classList.remove('flashquote'), 1700);
+  }
 }
 let MSG_WIN = 100; // render only the latest messages; older ones load on demand
 async function renderMessages(noScroll) {
@@ -2935,6 +2965,12 @@ async function init() {
     const m = e.target.closest && e.target.closest('.msg');
     if (m) { e.stopPropagation(); toggleSel(m.dataset.id); }
   });
+  // WhatsApp-style: tap a quoted reply to jump to the original message
+  $('#messages').addEventListener('click', e => {
+    if (SEL.active) return;
+    const q = e.target.closest && e.target.closest('.bquote');
+    if (q && q.dataset.qid) jumpToMessage(q.dataset.qid);
+  });
   // block the browser's own long-press text/image menus inside chats
   $('#messages').addEventListener('contextmenu', e => e.preventDefault());
   $('#sendBtn').addEventListener('click', doSend);
@@ -3056,6 +3092,49 @@ init().catch(e => {
   console.error(e);
   toast('Something went wrong while starting the app', 'err', 6000);
 });
+/* ---- installable web app (PWA) ----
+   The manifest is built here with the icons stored inside the file itself, so
+   installing works from the single page on GitHub Pages with no extra files.
+   If a sw.js file exists next to the page (uploaded to the same repo folder),
+   it is registered too and the app then opens fully offline. */
+  (function pwaSetup() {
+    try {
+      if (!/^https?:$/.test(location.protocol)) return; // PWA needs http(s)
+      var IC192 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAYAAABS3GwHAAADIklEQVR42u3dUW7iSBSGUbtUmzWbADbBdp0npChAgjHEcP9zHkeKPO26H7fQdPeMw2GaBwjVvAIEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAAQAAgABAACAAEAAIAAYAA4L/1pF/svD858TuNx13Gr7PyX49u4AURF4ChF0NcAIZeDLFfgg2/9x+5AQy+bRC7AQy/c4ncAAbfNojdAIbfNogNwPCLIDYAwy+C2AAMvwhiAzD8IogNwPCLwBUIEgPw6W8LxAZg+EXgCgSJAfj0twViAzD8InAFAgFAWACuP65BNgAIAMICcP1h6zmwAbABQAAgAPd/subBBsAGAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAGAb3Su4NB53F//s2X95a5VnfPxZD4dp3uLB73gQ1wbm2f/eVZ6x1ft3Bdr45a85pCrP8B0gdPjXDE+VZwggfPgf+bkqzxAACMCn/5Kfr/IMAYAAQAAgABDAh1v7X0Pv+fkqzxAACMAWeOTnqjxDACJ4eGiqPEMA4RGsGZoqz6jEb4e+9lL8eYC3ee8CIOfT2J8HAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABAACAAGAAEAAIAAQAAgABIAAQAAgABAACODV0v8P5bzHPNgA2AAgABCA7wFkzYENgA0AAnANIvD8bQBsABCAaxCB5968DJLP2xUIVyCfCqSec/NySD5fVyBcgXxKkHquzcsi+Tybl0byOTYvj+Tza14iyefWvEySz2scDtP8aS933p9MmMHP2gC2gXOxAWwDg28D2Abevw1gIxj6p+iGn+RN2w0/yVfLbvh9j0jWk4ff4NMTh9/gc9YMPzZAwPAbfEoEsHT4DT5lrkCGn9gNsGT4DT6lArh3+A0+EV+CDT4x3wH++vQ3/JTdAL8Nv8GndAC3ht/gU/4KZPiJ3QDXht/gExHAz+E3+MRcgQw/sRvg+/AbfKICOA+/wSfuCmT4id0A8/5k8MndAIaf+CsQCAAEAAIAAYAAQADwel+D8j1iKfuwKgAAAABJRU5ErkJggg==';
+      var IC512 = 'data:image/png;base64,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';
+      var man = {
+        name: 'ChatNest',
+        short_name: 'ChatNest',
+        description: 'ChatNest private messenger',
+        start_url: location.href.split('#')[0],
+        scope: location.href.replace(/[^\/]*(?:[?#].*)?$/, ''),
+        display: 'standalone',
+        orientation: 'portrait',
+        background_color: '#008069',
+        theme_color: '#008069',
+        icons: [
+          { src: IC192, sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: IC512, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: IC512, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      };
+      var link = document.createElement('link');
+      link.rel = 'manifest';
+      link.href = 'data:application/manifest+json;charset=utf-8,' + encodeURIComponent(JSON.stringify(man));
+      document.head.appendChild(link);
+      var it = document.createElement('link');
+      it.rel = 'apple-touch-icon';
+      it.href = IC192;
+      document.head.appendChild(it);
+      if ('serviceWorker' in navigator && typeof fetch === 'function') {
+        fetch('sw.js', { method: 'GET' }).then(function (r) {
+          if (r.ok && /javascript/i.test(r.headers.get('content-type') || '')) {
+            navigator.serviceWorker.register('sw.js').catch(function () {});
+          }
+        }).catch(function () {});
+      }
+    } catch (e) { /* installing stays a browser feature even if anything here fails */ }
+  })();
 </script>
 </body>
   </html>
