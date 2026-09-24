@@ -128,7 +128,11 @@
     width: 49px; height: 49px; border-radius: 50%; flex: 0 0 auto;
     display: flex; align-items: center; justify-content: center;
     color: #fff; font-size: 20px; font-weight: 600; background: #6a7f8a;
+    position: relative; overflow: hidden;
   }
+  .avatar img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+  #pfPhoto { cursor: pointer; }
+  #pfPhoto .cam { position: absolute; right: -2px; bottom: -2px; width: 30px; height: 30px; border-radius: 50%; background: #00a884; display: flex; align-items: center; justify-content: center; border: 2px solid #0b141a; box-sizing: border-box; }
   .chatrow .mid { flex: 1; min-width: 0; }
   .chatrow .nm { font-size: 16.5px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
   .chatrow .prev {
@@ -633,7 +637,7 @@
         <div class="avatar" style="background:rgba(255,255,255,.22)">🪺</div>
         <div>
           <div class="nm">ChatNest</div>
-          <div class="sub">ChatNest 17 &middot; private room messenger</div>
+          <div class="sub">ChatNest 19 &middot; private room messenger</div>
         </div>
       </div>
     </div>
@@ -1843,7 +1847,7 @@ const NET_LIB = { loading: null };
 function getNet(chat) {
   let h = NETS.get(chat.id);
   if (!h) {
-    h = { chatId: chat.id, peer: null, conns: [], role: null, token: 0, room: null, status: 'offline', retryTimer: null, typing: false, typingTimer: null, pend: [], xchain: null, inflight: new Set() };
+    h = { chatId: chat.id, peer: null, conns: [], role: null, token: 0, room: null, status: 'offline', retryTimer: null, typing: false, typingTimer: null, pend: [], xchain: null, inflight: new Set(), dm: !!chat.dmUser };
     NETS.set(chat.id, h);
     if (chat.dmUser) dialUser(chat.dmUser); else connectNet(h, chat);
   }
@@ -1868,6 +1872,7 @@ function updateNetUi(h) {
   if (h.chatId !== S.activeId || $('#chatview').classList.contains('hidden')) return;
   if (h.typing) { el.className = 's-ok'; $('.txt', el).textContent = 'typing…'; $('.txt', el).classList.add('typing'); return; }
   $('.txt', el).classList.remove('typing');
+  if (h.dm && !h.conns.length) { el.className = 's-wait'; $('.txt', el).textContent = 'Waiting for them to come online\u2026'; return; }
   const n = h.conns.length;
   if (n > 0) { el.className = 's-ok'; $('.txt', el).textContent = ''; }
   else if (h.status === 'waiting') { el.className = 's-wait'; $('.txt', el).textContent = 'Waiting for partner…'; }
@@ -1967,7 +1972,7 @@ async function connectNet(h, chat) {
   }
 }
 function wireConn(c, h) {
-  c.on('open', () => {
+  const wireOpen = () => {
     if (!h.conns.includes(c)) h.conns.push(c);
     updateNetUi(h);
     flushQueue(h);
@@ -1978,7 +1983,12 @@ function wireConn(c, h) {
       DB.msgsOf(h.chatId).then(ms => sendSeen(h, ms.filter(m => m.dir === 'them').map(m => m.id))).catch(() => {});
     }
     if (h.chatId === S.activeId) toast('Connected — you can chat now', 'ok', 2000);
-  });
+  };
+  c.on('open', wireOpen);
+  /* a connection that is already open (direct username chats) never fires
+     'open' again — run the open logic immediately so queued messages flush */
+  if (c.open) wireOpen();
+  setTimeout(() => maybeBroadcastMembers(h), 400);
   c.on('data', d => onData(d, c, h));
   c.on('close', () => { dropConn(c, h); });
   c.on('error', () => { dropConn(c, h); });
@@ -1986,6 +1996,7 @@ function wireConn(c, h) {
 function dropConn(c, h) {
   h.conns = h.conns.filter(x => x !== c);
   if (c.__recv) failIncoming(c, h);
+  maybeBroadcastMembers(h);
   if (h.conns.length === 0) {
     if (h.role === 'host') setStatus(h, 'waiting');
     else {
@@ -2043,10 +2054,12 @@ function onData(d, from, h) {
   else if (d.type === 'react') receiveReact(h, d);
   else if (d.type === 'pinmsg') receivePin(h, d);
   else if (d.type === 'dpm') receiveDpm(h, d);
-  else if (d.type === 'profile') receiveProfile(h, d);
+  else if (d.type === 'profile') receiveProfile(h, d, from);
   else if (d.type === 'freq') receiveFreq(h, d);
   else if (d.type === 'fack') receiveFack(h, d);
   else if (d.type === 'frem') receiveFrem(h);
+  else if (d.type === 'members') receiveMembers(h, d);
+  else if (d.type === 'groupphoto') receiveGroupPhoto(h, d);
 }
 
 /* ---- typing indicator ---- */
@@ -2973,7 +2986,7 @@ async function chatMenuFlow() {
     { label: 'Search messages', key: 'search' },
     { label: 'Jump to date', key: 'jdate' },
     { label: 'Disappearing messages' + (chat.dpm ? ' (ON)' : ''), key: 'dpm' },
-    { label: 'View profile', key: 'profile' },
+    { label: chat.group ? 'Group info' : 'View profile', key: 'profile' },
     { label: 'Add friend', key: 'addfriend' },
     { label: 'Share chat QR', key: 'qr' },
     { label: isBlocked(chat.id) ? 'Unblock this chat' : 'Block this chat', key: 'block' },
@@ -2989,7 +3002,7 @@ async function chatMenuFlow() {
   else if (it.key === 'search') searchFlow();
   else if (it.key === 'jdate') jumpDateFlow();
   else if (it.key === 'dpm') await dpmFlow(chat);
-  else if (it.key === 'profile') partnerProfileDlg(chat);
+  else if (it.key === 'profile') { if (chat.group) openGroupInfo(chat); else partnerProfileDlg(chat); }
   else if (it.key === 'addfriend') addFriendFlow(chat);
   else if (it.key === 'qr') openQRShare(chat.name, 'Chat name: ' + chat.name);
   else if (it.key === 'block') await blockFlow(chat);
@@ -3343,10 +3356,11 @@ async function init() {
   $('#dPrivacy').addEventListener('click', () => { closeDrawer(); openPrivacy(); });
   $('#dFolders').addEventListener('click', () => { closeDrawer(); renderFoldersScreen(); openOvl('ovlFolders'); });
   $('#dNewGroup').addEventListener('click', () => { closeDrawer(); newGroupFlow(); });
+  $('#gpPhotoInput').addEventListener('change', gpPhotoChosen);
   $('#dUserSearch').addEventListener('click', () => { closeDrawer(); searchUserFlow(); });
   $('#pfFind').addEventListener('click', () => { closeOvl('ovlProfile'); searchUserFlow(); });
   $('#dGSearch').addEventListener('click', () => { closeDrawer(); openGlobalSearch(); });
-  $('#pfPhotoBtn').addEventListener('click', () => { try { $('#pfPhotoInput').click(); } catch (e) {} });
+  $('#pfPhoto').addEventListener('click', pfPhotoFlow);
   $('#pfPhotoInput').addEventListener('change', pfPhotoChosen);
   $('#pfSave').addEventListener('click', saveProfileFlow);
   $('#pfShare').addEventListener('click', () => { const p = myProfile(); openQRShare('CHATNEST-PROFILE:' + JSON.stringify({ n: p.name, u: p.username }), 'Your profile QR'); });
@@ -3816,8 +3830,15 @@ function myProfile() {
   return { name: p.name || (HUB.user && HUB.user.name) || 'User', username: p.username || '', bio: p.bio || '', photo: p.photo || '' };
 }
 function sendProfileTo(h) { try { if (h) sendProto(h, { type: 'profile', p: myProfile() }); } catch (e) {} }
-async function receiveProfile(h, d) {
+async function receiveProfile(h, d, from) {
   if (!d || !d.p) return;
+  if (from && d.p && d.p.name) {
+    from.__who = {
+      name: String(d.p.name).slice(0, 40),
+      username: String(d.p.username || '').slice(0, 25),
+      photo: (typeof d.p.photo === 'string' && d.p.photo.length < 120000) ? d.p.photo : ''
+    };
+  }
   const chat = S.chats.find(c => c.id === h.chatId);
   if (!chat) return;
   chat.partnerProfile = {
@@ -3837,12 +3858,44 @@ async function receiveProfile(h, d) {
       else av.textContent = (chat.name || '?').slice(0, 1).toUpperCase();
     } catch (e) {}
   }
+  maybeBroadcastMembers(h);
 }
 function renderPfPhoto(p) {
   const el = $('#pfPhoto');
   el.innerHTML = '';
   if (p.photo) { const im = document.createElement('img'); im.src = p.photo; el.appendChild(im); }
   else el.textContent = (p.name || '?').slice(0, 1).toUpperCase();
+  const cam = document.createElement('div');
+  cam.className = 'cam';
+  cam.innerHTML = '<svg viewBox="0 0 24 24" width="17" height="17" fill="#fff"><path d="M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM9 3L7.2 5H4a2 2 0 00-2 2v12a2 2 0 002 2h16a2 2 0 002-2V7a2 2 0 00-2-2h-3.2L15 3H9z"/></svg>';
+  el.appendChild(cam);
+}
+function updateDrawerAvatar(p) {
+  try {
+    const da = $('#drawerAccount');
+    if (da && HUB.user) {
+      HUB.user.name = p.name;
+      const nm = da.querySelector('.nm'); if (nm) nm.textContent = p.name;
+      const av = da.querySelector('.avatar');
+      if (av) { av.innerHTML = ''; if (p.photo) { const im = document.createElement('img'); im.src = p.photo; av.appendChild(im); } else av.textContent = p.name.slice(0, 1).toUpperCase(); }
+    }
+  } catch (e) {}
+}
+async function pfPhotoFlow() {
+  const p = myProfile();
+  const items = [{ label: 'Choose a new photo', key: 'pick' }];
+  if (p.photo) items.push({ label: 'Remove photo', key: 'rm', danger: true });
+  const it = await actionSheet(items, 'Profile photo');
+  if (!it) return;
+  if (it.key === 'pick') { try { $('#pfPhotoInput').click(); } catch (e) {} }
+  else if (it.key === 'rm') {
+    const np = Object.assign(myProfile(), { photo: '' });
+    S.settings.profile = np;
+    await setSetting('profile', np);
+    renderPfPhoto(np);
+    updateDrawerAvatar(np);
+    toast('Photo removed', 'ok');
+  }
 }
 function openProfile() {
   const p = myProfile();
@@ -3893,7 +3946,8 @@ async function pfPhotoChosen(e) {
     S.settings.profile = p;
     await setSetting('profile', p);
     renderPfPhoto(p);
-    toast('Photo saved \u2014 tap Save profile', 'ok');
+    updateDrawerAvatar(p);
+    toast('Photo saved', 'ok');
   } catch (err) { toast('Could not read that photo', 'err'); }
 }
 function partnerProfileDlg(chat) {
@@ -4426,6 +4480,19 @@ function handleHelloDm(c, d) {
   const uname = String((d.p && d.p.username) || '').toLowerCase().slice(0, 25);
   if (!uname) return;
   dmChatFor(uname, (d.p && d.p.name) || uname).then(chat => {
+    if (d.p && (d.p.name || uname)) {
+      chat.partnerProfile = {
+        name: String(d.p.name || uname).slice(0, 40),
+        username: uname,
+        bio: String(d.p.bio || '').slice(0, 140),
+        photo: (typeof d.p.photo === 'string' && d.p.photo.length < 120000) ? d.p.photo : ''
+      };
+    }
+    let renamed = false;
+    if (chat.name === uname && d.p && d.p.name && d.p.name !== uname) { chat.name = String(d.p.name).slice(0, 40); renamed = true; }
+    if (d.p && d.p.photo && !chat.avatarPhoto) { chat.avatarPhoto = String(d.p.photo); renamed = true; }
+    if (renamed) { DB.put('chats', chat).catch(() => {}); }
+    if (S.activeId === chat.id) { try { $('#chatName').textContent = chat.name + (chat.dpm ? ' \u23f3' : ''); } catch (e) {} }
     let h = NETS.get(chat.id);
     if (!h) { h = newDmNet(chat.id); NETS.set(chat.id, h); }
     h.conns = [c];
@@ -4449,29 +4516,26 @@ function dialUser(uname) {
     c.on('open', () => { try { c.send({ type: 'hello-dm', p: myProfile() }); } catch (e) {} });
   } catch (e) {}
 }
-function searchUserFlow() {
+async function searchUserFlow() {
   openOvl('ovlUserSearch');
   const inp = $('#userSearchInp'), out = $('#userSearchOut');
   inp.value = ''; out.innerHTML = '';
   const btn = $('#userSearchBtn');
-  btn.onclick = () => {
+  btn.onclick = async () => {
     const u = inp.value.trim().toLowerCase().replace(/^@/, '');
     if (!/^[a-z0-9_.]{3,20}$/.test(u)) { toast('Enter a valid username (3\u201320 letters, numbers, dot or underscore)', 'err'); return; }
     if (myProfile().username === u) { toast('That is your own username'); return; }
-    if (!USER.peer || !USER.peer.open) { userPeerStart(); toast('Your username connection is still starting \u2014 try again in a few seconds', 'err', 4000); return; }
-    out.innerHTML = '<div class="pdesc" style="text-align:center;padding:20px">Searching\u2026</div>';
-    USER.wantOpen = u;
-    let opened = false;
-    try {
-      const c = USER.peer.connect(userPeerId(u), { reliable: true });
-      c.on('data', d => { if (d && d.type === 'hello-dm') { opened = true; handleHelloDm(c, d); } });
-      c.on('open', () => { try { c.send({ type: 'hello-dm', p: myProfile() }); } catch (e) {} });
-      setTimeout(() => {
-        if (opened) return;
-        try { c.close(); } catch (e) {}
-        if (USER.wantOpen === u) { USER.wantOpen = null; out.innerHTML = ''; toast('User not found or not online right now', 'err', 4500); }
-      }, 10000);
-    } catch (e) { out.innerHTML = ''; toast('Search failed', 'err'); }
+    if (!USER.peer || !USER.peer.open) userPeerStart();
+    /* WhatsApp-like: the chat opens immediately, even if they are offline.
+       Messages you send wait and deliver automatically when they come online. */
+    const chat = await dmChatFor(u, u);
+    closeOvl('ovlUserSearch');
+    openChat(chat.id);
+    if (USER.peer && USER.peer.open) dialUser(u);
+    setTimeout(() => {
+      const h = NETS.get(chat.id);
+      if (!h || !h.conns.length) toast('They are not online right now \u2014 your messages will send automatically when they open ChatNest', 'ok', 5000);
+    }, 6000);
   };
 }
 async function newGroupFlow() {
@@ -4501,6 +4565,150 @@ function netKeepAliveTick() {
     }
   });
   if (!USER.peer && myProfile().username) userPeerStart();
+}
+
+
+/* ==================== v19: group profile + member lists ==================== */
+function maybeBroadcastMembers(h) {
+  try {
+    if (!h || h.role !== 'host') return;
+    const chat = S.chats.find(c => c.id === h.chatId);
+    if (!chat || !chat.group) return;
+    const me = myProfile();
+    const list = [{ name: me.name, username: me.username, photo: '', you: true }];
+    h.conns.forEach(c => {
+      if (c.open && c.__who) {
+        const key = c.__who.username || c.__who.name;
+        if (!list.some(m => (m.username || m.name) === key)) {
+          list.push({ name: c.__who.name, username: c.__who.username, photo: c.__who.photo || '' });
+        }
+      }
+    });
+    chat.members = list.slice(0, 50);
+    DB.put('chats', chat).catch(() => {});
+    sendProto(h, { type: 'members', list: chat.members });
+    renderGroupInfoIfOpen(chat.id);
+  } catch (e) {}
+}
+async function receiveMembers(h, d) {
+  if (!d || !Array.isArray(d.list)) return;
+  const chat = S.chats.find(c => c.id === h.chatId);
+  if (!chat || !chat.group) return;
+  chat.members = d.list.slice(0, 50).map(m => ({
+    name: String(m.name || '').slice(0, 40),
+    username: String(m.username || '').slice(0, 25),
+    photo: (typeof m.photo === 'string' && m.photo.length < 120000) ? m.photo : '',
+    you: !!m.you
+  }));
+  await DB.put('chats', chat);
+  renderGroupInfoIfOpen(chat.id);
+}
+async function receiveGroupPhoto(h, d) {
+  if (typeof d.photo !== 'string' || d.photo.length > 200000) return;
+  const chat = S.chats.find(c => c.id === h.chatId);
+  if (!chat || !chat.group) return;
+  chat.avatarPhoto = d.photo;
+  await DB.put('chats', chat);
+  renderChatLists();
+  renderGroupInfoIfOpen(chat.id);
+  if (S.activeId === chat.id) {
+    try { const av = $('#chatAvatar'); av.innerHTML = ''; const im = document.createElement('img'); im.src = d.photo; av.appendChild(im); } catch (e) {}
+  }
+  toast('Group photo updated', 'ok');
+}
+function renderGroupInfoIfOpen(chatId) {
+  const ov = $('#ovlGroup');
+  if (!ov || ov.classList.contains('hidden')) return;
+  const chat = S.chats.find(c => c.id === chatId);
+  if (chat) renderGroupInfoScreen(chat);
+}
+function openGroupInfo(chat) {
+  renderGroupInfoScreen(chat);
+  openOvl('ovlGroup');
+}
+function renderGroupInfoScreen(chat) {
+  const out = $('#groupOut');
+  if (!out) return;
+  out.innerHTML = '';
+  /* group photo circle */
+  const phWrap = document.createElement('div');
+  phWrap.style.textAlign = 'center';
+  const ph = document.createElement('div');
+  ph.className = 'avatar';
+  ph.style.cssText = 'width:96px;height:96px;font-size:38px;margin:0 auto 8px;background:#008069;cursor:pointer';
+  if (chat.avatarPhoto) { const im = document.createElement('img'); im.src = chat.avatarPhoto; ph.appendChild(im); }
+  else ph.textContent = String(chat.name || 'G').replace(/\uD83D\uDC65/g, '').trim().slice(0, 1).toUpperCase();
+  ph.addEventListener('click', () => { try { $('#gpPhotoInput').click(); } catch (e) {} });
+  phWrap.appendChild(ph);
+  const hint = document.createElement('div');
+  hint.className = 'pdesc';
+  hint.style.marginBottom = '10px';
+  hint.textContent = 'Tap the circle to set the group photo \u2014 it updates for everyone';
+  phWrap.appendChild(hint);
+  out.appendChild(phWrap);
+  /* group name */
+  const nrow = document.createElement('div'); nrow.className = 'prow';
+  const nwho = document.createElement('div'); nwho.className = 'who';
+  const nnm = document.createElement('div'); nnm.className = 'nm'; nnm.textContent = chat.name;
+  const nsub = document.createElement('div'); nsub.className = 'sub'; nsub.textContent = 'Group \u00b7 tap Rename to change';
+  nwho.appendChild(nnm); nwho.appendChild(nsub);
+  const rn = document.createElement('button'); rn.className = 'pbtn'; rn.textContent = 'Rename';
+  rn.addEventListener('click', async () => { await renameFlow(chat); renderGroupInfoScreen(chat); });
+  nrow.appendChild(nwho); nrow.appendChild(rn);
+  out.appendChild(nrow);
+  /* members */
+  const members = chat.members && chat.members.length ? chat.members : [{ name: myProfile().name, username: myProfile().username, you: true }];
+  const lab = document.createElement('div'); lab.className = 'plabel';
+  lab.textContent = 'Members (' + members.length + ')';
+  out.appendChild(lab);
+  members.forEach(m => {
+    const row = document.createElement('div'); row.className = 'prow';
+    const av = document.createElement('div'); av.className = 'avatar'; av.style.background = '#008069';
+    if (m.photo) { const im = document.createElement('img'); im.src = m.photo; av.appendChild(im); }
+    else av.textContent = (m.name || '?').slice(0, 1).toUpperCase();
+    const who = document.createElement('div'); who.className = 'who';
+    const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = (m.you ? 'You' : (m.name || 'Member'));
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = m.username ? '@' + m.username : '';
+    who.appendChild(nm); who.appendChild(sub);
+    row.appendChild(av); row.appendChild(who);
+    out.appendChild(row);
+  });
+  const note = document.createElement('div'); note.className = 'pdesc';
+  note.textContent = 'Members appear here as they come online. The host keeps the list and shares it with everyone.';
+  out.appendChild(note);
+  /* invite */
+  const inv = document.createElement('button'); inv.className = 'pbtn'; inv.textContent = 'Invite people (share group name / QR)';
+  inv.addEventListener('click', () => openQRShare(chat.name, 'Group name: ' + chat.name + ' \u2014 share this so others can join'));
+  out.appendChild(inv);
+}
+async function gpPhotoChosen(e) {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  if (f.size > 15 * 1024 * 1024) { toast('That photo is too large (over 15 MB) \u2014 please pick a smaller one', 'err'); return; }
+  try {
+    const im = await new Promise((res, rej) => {
+      const i = new Image();
+      const url = URL.createObjectURL(f);
+      i.onload = () => { res(i); try { URL.revokeObjectURL(url); } catch (e2) {} };
+      i.onerror = rej;
+      i.src = url;
+    });
+    const side = Math.min(im.width, im.height);
+    const cv = document.createElement('canvas'); cv.width = cv.height = 240;
+    const cx = cv.getContext('2d');
+    cx.drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, 240, 240);
+    const data = cv.toDataURL('image/jpeg', 0.8);
+    const chat = S.chats.find(c => c.id === S.activeId);
+    if (!chat || !chat.group) return;
+    chat.avatarPhoto = data;
+    await DB.put('chats', chat);
+    renderChatLists();
+    renderGroupInfoScreen(chat);
+    try { const av = $('#chatAvatar'); av.innerHTML = ''; const im2 = document.createElement('img'); im2.src = data; av.appendChild(im2); } catch (e) {}
+    const h = NETS.get(chat.id);
+    if (h) sendProto(h, { type: 'groupphoto', photo: data });
+    toast('Group photo updated for everyone', 'ok');
+  } catch (err) { toast('Could not read that photo', 'err'); }
 }
 
 function doSend() {
@@ -4575,8 +4783,8 @@ init().catch(e => {
   <div class="fshead"><button class="ib" data-close="ovlProfile">‹</button><span>My profile</span></div>
   <div class="fsbody">
     <div style="text-align:center">
-      <div id="pfPhoto" class="avatar" style="width:84px;height:84px;font-size:34px;margin:0 auto 10px;background:#008069"></div>
-      <button class="pbtn" id="pfPhotoBtn">Change photo</button>
+      <div id="pfPhoto" class="avatar" style="width:96px;height:96px;font-size:38px;margin:0 auto 8px;background:#008069"></div>
+      <div class="pdesc" style="margin-bottom:8px">Tap the circle to change or remove your photo</div>
       <input type="file" id="pfPhotoInput" accept="image/*" class="hidden">
     </div>
     <div><div class="plabel">Display name</div><input class="inp" id="pfName" maxlength="30"></div>
@@ -4642,8 +4850,14 @@ init().catch(e => {
     <input class="inp" id="userSearchInp" placeholder="Type a username, e.g. yogesh_22">
     <button class="pbtn" id="userSearchBtn">Search</button>
     <div id="userSearchOut"></div>
-    <div class="pdesc">Search works when the other person is online in ChatNest. They must have a username saved in My profile. Groups: create one in the menu, then share the group name so others can join.</div>
+    <div class="pdesc">Type anyone\u2019s username to open a chat with them \u2014 even while they are offline. Your messages wait and send automatically when they come online. Groups: create one in the menu, then share the group name so others can join.</div>
   </div>
 </div>
+<!-- ===== v19: group info ===== -->
+<div id="ovlGroup" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlGroup">‹</button><span>Group info</span></div>
+  <div class="fsbody" id="groupOut"></div>
+</div>
+<input type="file" id="gpPhotoInput" accept="image/*" class="hidden">
 </body>
   </html>
