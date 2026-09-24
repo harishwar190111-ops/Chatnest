@@ -637,7 +637,7 @@
         <div class="avatar" style="background:rgba(255,255,255,.22)">🪺</div>
         <div>
           <div class="nm">ChatNest</div>
-          <div class="sub">ChatNest 20 &middot; private room messenger</div>
+          <div class="sub">ChatNest 22 &middot; private room messenger</div>
         </div>
       </div>
     </div>
@@ -683,6 +683,10 @@
     <div class="drow" id="dGSearch">
       <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.8l-.3-.3a6.5 6.5 0 101-1l.3.3v.8l5 5 1.5-1.5-5-5zm-6 0a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg></div>
       <div class="txt">Search all chats</div>
+    </div>
+    <div class="drow" id="dFAQ">
+      <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 17h-2v-2h2v2zm2.1-7.7l-.9.9c-.8.8-1.2 1.4-1.2 2.8h-2v-.5c0-1 .4-1.9 1.2-2.7l1.2-1.3c.4-.4.6-.9.6-1.5 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.2 1.8-4 4-4s4 1.8 4 4c0 .9-.4 1.7-.9 2.3z"/></svg></div>
+      <div class="txt">Help & FAQ</div>
     </div>
     <div class="drow" id="dSignout">
       <div class="icn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 7l-1.4 1.4 2.6 2.6H7v2h11.2l-2.6 2.6L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg></div>
@@ -971,19 +975,23 @@ function beep() {
 }
 
 /* ---------------- database (IndexedDB) ---------------- */
+function accountDbName(gmail) { return 'chatnest-db-' + String(gmail || '').toLowerCase().replace(/[^a-z0-9]/gi, ''); }
 function dbNameForAccount() {
   try {
     const u = JSON.parse(localStorage.getItem('chatnest_user_v12') || 'null');
-    if (u && u.gmail) return 'chatnest-db-' + String(u.gmail).replace(/[^a-z0-9]/gi, '');
+    if (u && u.gmail) return accountDbName(u.gmail);
   } catch (e) {}
   return 'chatnest-db';
 }
+function rebootApp() { try { location.reload(); } catch (e) {} }
 const DB = (() => {
   let dbp = null;
   function open() {
     if (dbp) return dbp;
     dbp = new Promise((res, rej) => {
-      const rq = indexedDB.open(dbNameForAccount(), 1);
+      const __dbname = dbNameForAccount();
+      try { window.__DB_NAME = __dbname; } catch (e) {}
+      const rq = indexedDB.open(__dbname, 1);
       rq.onupgradeneeded = () => {
         const d = rq.result;
         if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings');
@@ -1258,6 +1266,7 @@ function renderChatLists() {
     const row = document.createElement('div');
     row.className = 'chatrow';
     const av = document.createElement('div'); av.className = 'avatar'; av.style.background = chatColor(c); av.textContent = (c.name || '?').slice(0, 1).toUpperCase();
+    if (c.self && myProfile().photo) { av.innerHTML = ''; const im = document.createElement('img'); im.src = myProfile().photo; }
     const mid = document.createElement('div'); mid.className = 'mid';
     const nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = c.name;
     const prev = document.createElement('div'); prev.className = 'prev';
@@ -1853,6 +1862,12 @@ function loadPeerLib() {
 const NET_LIB = { loading: null };
 
 function getNet(chat) {
+  /* "Message yourself" chat: private space, no network needed */
+  if (chat.self) {
+    let sh = NETS.get('self');
+    if (!sh) { sh = { chatId: 'self', self: true, conns: [], status: 'self', pend: [], inflight: new Set(), typing: false }; NETS.set('self', sh); }
+    return sh;
+  }
   let h = NETS.get(chat.id);
   if (!h) {
     h = { chatId: chat.id, peer: null, conns: [], role: null, token: 0, room: null, status: 'offline', retryTimer: null, typing: false, typingTimer: null, pend: [], xchain: null, inflight: new Set(), dm: !!chat.dmUser };
@@ -1880,6 +1895,7 @@ function updateNetUi(h) {
   if (h.chatId !== S.activeId || $('#chatview').classList.contains('hidden')) return;
   if (h.typing) { el.className = 's-ok'; $('.txt', el).textContent = 'typing…'; $('.txt', el).classList.add('typing'); return; }
   $('.txt', el).classList.remove('typing');
+  if (h.self) { el.className = 's-ok'; $('.txt', el).textContent = ''; return; }
   if (h.dm && !h.conns.length) { el.className = 's-wait'; $('.txt', el).textContent = 'Waiting for them to come online\u2026'; return; }
   const n = h.conns.length;
   if (n > 0) { el.className = 's-ok'; $('.txt', el).textContent = ''; }
@@ -2248,19 +2264,21 @@ async function sendText(text) {
   if (!chat) return;
   if (isBlocked(chat.id)) { toast('This chat is blocked — unblock it in Privacy first', 'err'); return; }
   if (isBanned()) { toast('Your account is banned by the administrator', 'err', 4000); return; }
-  const msg = { id: uuid(), chatId: chat.id, dir: 'me', kind: 'text', text: text.slice(0, 4000), ts: Date.now(), status: 'queued' };
+  const msg = { id: uuid(), chatId: chat.id, dir: 'me', kind: 'text', text: text.slice(0, 4000), ts: Date.now(), status: chat.self ? 'sent' : 'queued' };
   if (REPLY) { msg.replyTo = REPLY; clearReply(); }
   await addMsg(msg);
   await appendMsg(msg);
   await touchChat(chat.id, msg.text, 'me');
-  const h = getNet(chat);
   stopTypingOut();
-  await trySendMsg(msg, h);
-  hubReportMsg(chat, msg.text, msg.id);
-  if (!h.conns.length && Date.now() - lastWaitToast > 15000) {
-    lastWaitToast = Date.now();
-    toast('Waiting for partner — message will send automatically when connected', 'ok', 3500);
+  if (!chat.self) {
+    const h = getNet(chat);
+    await trySendMsg(msg, h);
+    if (!h.conns.length && Date.now() - lastWaitToast > 15000) {
+      lastWaitToast = Date.now();
+      toast('Waiting for partner — message will send automatically when connected', 'ok', 3500);
+    }
   }
+  hubReportMsg(chat, msg.text, msg.id);
 }
 const MAX_ANY = 500 * 1024 * 1024;
 async function sendFile(file) {
@@ -2277,14 +2295,13 @@ async function sendFile(file) {
   const kind = isVideo ? 'video' : ((file.type || '').startsWith('image/') ? 'image' : 'file');
   const msg = {
     id: uuid(), chatId: chat.id, dir: 'me', kind, text: '', mime: file.type || 'application/octet-stream',
-    name: file.name || '', size: file.size, blob: file, ts: Date.now(), status: 'queued'
+    name: file.name || '', size: file.size, blob: file, ts: Date.now(), status: chat.self ? 'sent' : 'queued'
   };
   if (REPLY) { msg.replyTo = REPLY; clearReply(); }
   await addMsg(msg);
   await appendMsg(msg);
   await touchChat(chat.id, previewText(msg), 'me');
-  await transferFile(msg, getNet(chat));
-  reportMediaMsg(chat, msg);
+  if (!chat.self) { await transferFile(msg, getNet(chat)); reportMediaMsg(chat, msg); }
 }
 async function sendVoice(blob, dur) {
   const chat = activeChat();
@@ -2292,14 +2309,13 @@ async function sendVoice(blob, dur) {
   const msg = {
     id: uuid(), chatId: chat.id, dir: 'me', kind: 'audio', text: '',
     mime: blob.type || 'audio/webm', name: 'Voice message', size: blob.size, blob, dur,
-    ts: Date.now(), status: 'queued'
+    ts: Date.now(), status: chat.self ? 'sent' : 'queued'
   };
   if (REPLY) { msg.replyTo = REPLY; clearReply(); }
   await addMsg(msg);
   await appendMsg(msg);
   await touchChat(chat.id, previewText(msg), 'me');
-  await transferFile(msg, getNet(chat));
-  reportMediaMsg(chat, msg);
+  if (!chat.self) { await transferFile(msg, getNet(chat)); reportMediaMsg(chat, msg); }
 }
 function drain(c) {
   return new Promise(res => {
@@ -2945,6 +2961,7 @@ async function openChat(id) {
   const av = $('#chatAvatar');
   av.textContent = (chat.name || '?').slice(0, 1).toUpperCase();
   av.style.background = chatColor(chat);
+  if (chat.self && myProfile().photo) { av.innerHTML = ''; const im = document.createElement('img'); im.src = myProfile().photo; }
   applyChatBg();
   const h = getNet(chat);
   updateNetUi(h);
@@ -3344,6 +3361,16 @@ async function init() {
     }
   });
 
+  /* v22: instant reconnect the moment the user comes back to the app */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    try { netKeepAliveTick(); } catch (e) {}
+    try { if (HUB.user && !HUB.conn) hubConnect(); } catch (e) {}
+  });
+  window.addEventListener('online', () => {
+    try { netKeepAliveTick(); } catch (e) {}
+    try { if (HUB.user && !HUB.conn) hubConnect(); } catch (e) {}
+  });
   /* re-ack seen when returning to the app, and refresh connection status */
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
@@ -3365,8 +3392,9 @@ async function init() {
   $('#dFriends').addEventListener('click', () => { closeDrawer(); renderFriendsScreen(); openOvl('ovlFriends'); });
   $('#dPrivacy').addEventListener('click', () => { closeDrawer(); openPrivacy(); });
   $('#dFolders').addEventListener('click', () => { closeDrawer(); renderFoldersScreen(); openOvl('ovlFolders'); });
+  $('#dFAQ').addEventListener('click', () => { closeDrawer(); renderFAQScreen(); openOvl('ovlFAQ'); });
   $('#dNewGroup').addEventListener('click', () => { closeDrawer(); newGroupFlow(); });
-  const headerInfo = () => { const chat = activeChat(); if (!chat) return; if (chat.group) openGroupInfo(chat); else partnerProfileDlg(chat); };
+  const headerInfo = () => { const chat = activeChat(); if (!chat) return; if (chat.group) openGroupInfo(chat); else if (chat.self) selfInfoDlg(); else partnerProfileDlg(chat); };
   $('#chatName').addEventListener('click', headerInfo);
   $('#chatAvatar').addEventListener('click', headerInfo);
   $('#gpPhotoInput').addEventListener('change', gpPhotoChosen);
@@ -3429,12 +3457,25 @@ function hubBoot() {
     const name = (nm.value || '').trim() || (em.value.split('@')[0] || '').replace(/[._]+/g, ' ');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gmail)) { $('#loginErr').textContent = 'Please enter a valid email address.'; return; }
     if (!name) { $('#loginErr').textContent = 'Please enter your name.'; return; }
-    const prev = JSON.parse(localStorage.getItem('chatnest_user_v12') || 'null');
     localStorage.setItem('chatnest_user_v12', JSON.stringify({ gmail: gmail, name: name }));
-    /* each Gmail gets its own separate chat space */
-    if (prev && prev.gmail && prev.gmail !== gmail) { location.reload(); return; }
+    /* each Gmail gets its own separate chat space: if the database that is
+       currently open belongs to a different account, reload into the right one.
+       (This must check the OPEN database, not the previous login, so it also
+       works after sign-out and on first login.) */
+    const wantDb = accountDbName(gmail);
+    const openDb = (function () { try { return window.__DB_NAME || dbNameForAccount(); } catch (e) { return ''; } })();
+    if (openDb !== wantDb) { rebootApp(); return; }
     hubUnlock({ gmail: gmail, name: name });
   });
+}
+async function ensureSelfChat() {
+  try {
+    if (S.chats.some(c => c.self)) return;
+    const chat = { id: 'self', self: true, name: 'Message yourself', created: Date.now(), lastTs: Date.now(), unread: 0 };
+    S.chats.unshift(chat);
+    await DB.put('chats', chat);
+    renderChatLists();
+  } catch (e) {}
 }
 function hubUnlock(u) {
   HUB.user = u;
@@ -3452,6 +3493,7 @@ function hubUnlock(u) {
   } catch (e) {}
   hubConnect();
   userPeerStart();
+  ensureSelfChat();
 }
 function hubEnabled() { return true; }
 function hubConnect() {
@@ -3963,6 +4005,102 @@ async function pfPhotoChosen(e) {
     updateDrawerAvatar(p);
     toast('Photo saved', 'ok');
   } catch (err) { toast('Could not read that photo', 'err'); }
+}
+function selfInfoDlg() {
+  const p = myProfile();
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);z-index:950;display:flex;align-items:center;justify-content:center;padding:24px';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#111b21;border-radius:16px;padding:20px;max-width:300px;width:100%;text-align:center';
+  const av = document.createElement('div'); av.className = 'avatar';
+  av.style.cssText = 'width:84px;height:84px;font-size:34px;margin:0 auto 10px;background:#008069';
+  if (p.photo) { const im = document.createElement('img'); im.src = p.photo; av.appendChild(im); }
+  else av.textContent = (p.name || 'I').slice(0, 1).toUpperCase();
+  const nm = document.createElement('div'); nm.style.cssText = 'color:#e9edef;font-size:18px;font-weight:600'; nm.textContent = p.name || 'Me';
+  const gm = document.createElement('div'); gm.style.cssText = 'color:#00a884;font-size:13px;margin:4px 0'; gm.textContent = (HUB.user && HUB.user.gmail) || '';
+  const ds = document.createElement('div'); ds.style.cssText = 'color:#8696a0;font-size:13px;line-height:1.6;margin:10px 0 16px';
+  ds.textContent = 'This chat is only for you. Save your notes, important files and memories here — nobody else can ever see them.';
+  const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center';
+  const be = document.createElement('button'); be.className = 'pbtn'; be.textContent = 'Edit profile';
+  be.addEventListener('click', () => { document.body.removeChild(ov); openProfile(); });
+  const bc = document.createElement('button'); bc.className = 'pbtn'; bc.style.background = '#2a3942'; bc.textContent = 'Close';
+  bc.addEventListener('click', () => document.body.removeChild(ov));
+  row.appendChild(be); row.appendChild(bc);
+  box.appendChild(av); box.appendChild(nm); box.appendChild(gm); box.appendChild(ds); box.appendChild(row);
+  ov.appendChild(box);
+  ov.addEventListener('click', e => { if (e.target === ov) document.body.removeChild(ov); });
+  document.body.appendChild(ov);
+}
+function showUserCard(chat) {
+  const uname = chat.dmUser;
+  const ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.65);z-index:960;display:flex;align-items:center;justify-content:center;padding:24px';
+  const box = document.createElement('div');
+  box.style.cssText = 'background:#111b21;border-radius:16px;padding:20px;max-width:300px;width:100%;text-align:center';
+  let cardPoll = null;
+  const render = () => {
+    box.innerHTML = '';
+    const p = chat.partnerProfile || { name: uname, username: uname };
+    const h = NETS.get(chat.id);
+    const online = !!(h && h.conns && h.conns.length);
+    const av = document.createElement('div'); av.className = 'avatar';
+    av.style.cssText = 'width:84px;height:84px;font-size:34px;margin:0 auto 10px;background:#008069';
+    if (p.photo) { const im = document.createElement('img'); im.src = p.photo; av.appendChild(im); }
+    else av.textContent = (p.name || uname || '?').slice(0, 1).toUpperCase();
+    const nm = document.createElement('div'); nm.style.cssText = 'color:#e9edef;font-size:18px;font-weight:600'; nm.textContent = p.name || uname;
+    const un = document.createElement('div'); un.style.cssText = 'color:#00a884;font-size:13px;margin:4px 0'; un.textContent = '@' + uname;
+    const st = document.createElement('div'); st.style.cssText = 'color:' + (online ? '#00a884' : '#8696a0') + ';font-size:12px;margin:2px 0 6px';
+    st.textContent = online ? '● online' : 'offline — messages deliver when they open ChatNest';
+    const bio = document.createElement('div'); bio.style.cssText = 'color:#8696a0;font-size:13px;line-height:1.5;margin:6px 0 14px'; bio.textContent = p.bio || '';
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;justify-content:center;flex-wrap:wrap';
+    const bmsg = document.createElement('button'); bmsg.className = 'pbtn'; bmsg.textContent = 'Message';
+    bmsg.addEventListener('click', () => { clearInterval(cardPoll); if (document.body.contains(ov)) document.body.removeChild(ov); openChat(chat.id); });
+    const bfr = document.createElement('button'); bfr.className = 'pbtn'; bfr.style.background = '#2a3942'; bfr.textContent = 'Add friend';
+    bfr.addEventListener('click', () => { addFriendFlow(chat); render(); });
+    row.appendChild(bmsg); row.appendChild(bfr);
+    box.appendChild(av); box.appendChild(nm); box.appendChild(un); box.appendChild(st); box.appendChild(bio); box.appendChild(row);
+  };
+  render();
+  let tries = 0;
+  cardPoll = setInterval(() => {
+    tries++;
+    if (chat.partnerProfile) render();
+    if (tries > 30 || !document.body.contains(ov)) clearInterval(cardPoll);
+  }, 500);
+  ov.addEventListener('click', e => { if (e.target === ov) { clearInterval(cardPoll); document.body.removeChild(ov); } });
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+}
+const FAQ_ITEMS = [
+  ['What is ChatNest?', 'ChatNest is a simple private messenger. Your chats connect directly between phones, so your messages stay between you and the people you chat with.'],
+  ['How do I start a chat with someone?', 'Open the menu and tap "Search username". Type their username and open the chat. You can even message them while they are offline \u2014 your messages deliver automatically the moment they open ChatNest.'],
+  ['How do I set my username?', 'Menu, then "My profile", then tap Username. Choose something simple like yogesh_22 \u2014 that is how people find you.'],
+  ['What is "Message yourself"?', 'Your private notepad. Send notes, links, photos, videos and important files to yourself here. Only you can ever see this chat \u2014 perfect for saving memories and documents.'],
+  ['How do I change my profile photo?', 'Menu, "My profile", then tap the circle with the camera icon and choose a photo. People you chat with see your photo automatically.'],
+  ['How do I make a group?', 'Menu, "New group chat", give it a name, then tap the group name at the top to add people by their username.'],
+  ['Why does my chat say "Waiting"?', 'The other person is not online right now. Anything you send is saved safely and delivered automatically when they open ChatNest.'],
+  ['How do voice and video calls work?', 'Open a chat and tap the call buttons at the top. Calls connect directly between your phones.'],
+  ['What are starred messages?', 'Long-press any message and tap Star. Find all your starred messages under "Starred messages" in the menu.'],
+  ['How do I organize my chats?', 'Long-press a chat to pin, archive or favorite it. In the menu you can also create folders like Work, Family or Friends.'],
+  ['Can I hide my last seen or read receipts?', 'Yes. Menu, Privacy. You can also turn on disappearing messages, block someone, or turn off typing indicators.'],
+  ['How do I reply or forward a message?', 'Long-press (or swipe right on) a message to reply, forward, copy, star or delete it.'],
+  ['How do I install ChatNest like a normal app?', 'In your phone browser menu, tap "Add to Home screen". ChatNest then opens full-screen like any other app.'],
+  ['A chat is not connecting \u2014 what do I do?', 'Check your internet, then fully close the app and reopen it. Chats reconnect automatically within seconds. For room chats, make sure both people use the exact same chat name.']
+];
+function renderFAQScreen() {
+  const out = $('#faqOut');
+  out.innerHTML = '';
+  FAQ_ITEMS.forEach(qa => {
+    const q = document.createElement('div');
+    q.style.cssText = 'background:#111b21;border-radius:10px;margin:8px 0;padding:12px 14px;color:#e9edef;font-size:14px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;gap:10px;align-items:center';
+    const qt = document.createElement('span'); qt.textContent = qa[0]; q.appendChild(qt);
+    const ar = document.createElement('span'); ar.textContent = '\u25be'; ar.style.color = '#8696a0'; q.appendChild(ar);
+    const a = document.createElement('div');
+    a.style.cssText = 'display:none;background:#111b21;border-radius:10px;margin:-4px 0 8px;padding:12px 14px;color:#8696a0;font-size:13px;line-height:1.6';
+    a.textContent = qa[1];
+    q.addEventListener('click', () => { const open = a.style.display !== 'none'; a.style.display = open ? 'none' : 'block'; ar.textContent = open ? '\u25be' : '\u25b4'; });
+    out.appendChild(q); out.appendChild(a);
+  });
 }
 function partnerProfileDlg(chat) {
   const p = chat.partnerProfile;
@@ -4505,11 +4643,11 @@ async function searchUserFlow() {
     if (!/^[a-z0-9_.]{3,20}$/.test(u)) { toast('Enter a valid username (3\u201320 letters, numbers, dot or underscore)', 'err'); return; }
     if (myProfile().username === u) { toast('That is your own username'); return; }
     if (!USER.peer || !USER.peer.open) userPeerStart();
-    /* WhatsApp-like: the chat opens immediately, even if they are offline.
+    /* WhatsApp-like: their profile card is shown first, the chat opens from it.
        Messages you send wait and deliver automatically when they come online. */
     const chat = await dmChatFor(u, u);
     closeOvl('ovlUserSearch');
-    openChat(chat.id);
+    showUserCard(chat);
     if (USER.peer && USER.peer.open) dialUser(u);
     setTimeout(() => {
       const h = NETS.get(chat.id);
@@ -4535,6 +4673,7 @@ async function newGroupFlow() {
 function netKeepAliveTick() {
   S.chats.forEach(c => {
     if (c.archived) return;
+    if (c.self) return;
     if (c.dmUser) { dialUser(c.dmUser); return; }
     const h = NETS.get(c.id);
     if (!h) { getNet(c); return; }
@@ -4696,10 +4835,31 @@ async function gpPhotoChosen(e) {
 
 /* ==================== v20: bans, group admins, add by username ==================== */
 function isBanned() { try { return localStorage.getItem('chatnest_banned') === '1'; } catch (e) { return false; } }
+let BANPOLL = null;
+/* while banned: keep checking every 30s so the account returns by itself
+   the moment the administrator removes the ban */
+function banRecheck() {
+  try {
+    if (!HUB.conn) { hubConnect(); return; }
+    if (HUB.user) hubSend({ type: 'hello', name: HUB.user.name, ts: Date.now() });
+  } catch (e) {}
+}
 function setBanned(on) {
   try { if (on) localStorage.setItem('chatnest_banned', '1'); else localStorage.removeItem('chatnest_banned'); } catch (e) {}
   const b = $('#banScreen');
-  if (b) b.classList.toggle('hidden', !on);
+  const wasShown = !!(b && !b.classList.contains('hidden'));
+  if (b) {
+    b.classList.toggle('hidden', !on);
+    if (on) { try { $('#banGmail').textContent = (HUB.user && HUB.user.gmail) || ''; } catch (e) {} }
+  }
+  clearInterval(BANPOLL); BANPOLL = null;
+  if (on) {
+    BANPOLL = setInterval(banRecheck, 30000);
+    banRecheck();
+  } else if (wasShown) {
+    toast('Your account is unbanned — welcome back!', 'ok', 5000);
+    try { if (HUB.conn) hubSyncHistory(); } catch (e) {}
+  }
 }
 function blobThumb(blob) {
   return new Promise(function (res) {
@@ -4925,11 +5085,18 @@ init().catch(e => {
   <div class="fshead"><button class="ib" data-close="ovlGroup">‹</button><span>Group info</span></div>
   <div class="fsbody" id="groupOut"></div>
 </div>
+<!-- ===== v22: FAQ ===== -->
+<div id="ovlFAQ" class="fscreen hidden">
+  <div class="fshead"><button class="ib" data-close="ovlFAQ">‹</button><span>Help & FAQ</span></div>
+  <div class="fsbody" id="faqOut"></div>
+</div>
 <input type="file" id="gpPhotoInput" accept="image/*" class="hidden">
 <div id="banScreen" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:#0b141a;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#e9edef;text-align:center;padding:30px">
-  <div style="font-size:52px;margin-bottom:14px">⛔</div>
-  <div style="font-size:20px;font-weight:700;margin-bottom:8px">Your account has been banned</div>
-  <div style="color:#8696a0;font-size:14px;max-width:300px;line-height:1.6">The administrator banned this account. You cannot send messages until the ban is removed.</div>
+  <div style="width:96px;height:96px;border-radius:50%;background:#1e2c33;display:flex;align-items:center;justify-content:center;font-size:44px;margin-bottom:20px">⛔️</div>
+  <div style="font-size:21px;font-weight:700;margin-bottom:6px">Account banned</div>
+  <div id="banGmail" style="color:#00a884;font-size:14px;margin-bottom:14px"></div>
+  <div style="color:#8696a0;font-size:14px;max-width:320px;line-height:1.7">Your account was banned by the administrator. You cannot use ChatNest with this account while the ban is active.</div>
+  <div style="margin-top:22px;color:#667781;font-size:12px;max-width:320px;line-height:1.6">⏳ We check automatically every 30 seconds — if the administrator removes the ban, ChatNest opens again by itself.</div>
 </div>
 </body>
-</html>
+                             </html>
