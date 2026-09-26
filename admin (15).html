@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChatNest Admin</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font: 15px/1.5 system-ui, Roboto, sans-serif; background: #0b141a; color: #e9edef; }
+#login { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #0b141a; z-index: 100; }
+#login h1 { font-size: 26px; margin: 0; }
+#login .sub { color: #8696a0; font-size: 14px; }
+#lbtn { display: flex; align-items: center; gap: 10px; padding: 13px 22px; border: 1px solid #444; border-radius: 8px; background: #fff; color: #1f1f1f; font-size: 16px; cursor: pointer; }
+#lerr { color: #f66; min-height: 20px; font-size: 14px; }
+header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #202c33; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; flex: 1; }
+#btnMenu { background: none; border: 0; color: #e9edef; font-size: 22px; cursor: pointer; padding: 4px 8px; }
+#menuBack { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 18; }
+.hidden { display: none !important; } /* v6.1 FIX: without this rule the menu backdrop
+   covered the whole panel with a dim, click-blocking layer — the page looked frozen.
+   Defined now so the backdrop only appears while the three-line menu is open. */
+#drawer { position: fixed; top: 0; bottom: 0; left: -290px; width: 280px; background: #111b21; z-index: 19; transition: left .2s; overflow-y: auto; padding: 14px 0 30px; }
+#drawer.open { left: 0; }
+#drawer .dhead { padding: 8px 18px 14px; color: #53bdeb; font-size: 16px; font-weight: 600; }
+#dList button { display: block; width: 100%; text-align: left; background: none; border: 0; color: #e9edef; padding: 11px 18px; font-size: 14.5px; cursor: pointer; }
+#dList button.on { background: #2a3942; color: #53bdeb; }
+#dList hr { border: 0; border-top: 1px solid #222d34; margin: 8px 0; }
+header button { background: none; border: 0; color: #8696a0; font-size: 20px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+header button.on { color: #53bdeb; }
+nav { display: flex; overflow-x: auto; gap: 6px; padding: 8px 12px; background: #111b21; position: sticky; top: 56px; z-index: 4; }
+nav button { border: 0; background: #202c33; color: #e9edef; padding: 8px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+nav button.on { background: #2a3942; color: #53bdeb; }
+main { padding: 14px 16px 60px; max-width: 900px; margin: 0 auto; }
+.card { background: #111b21; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 10px; font-size: 15px; color: #53bdeb; }
+.stat { display: flex; flex-wrap: wrap; gap: 10px; }
+.stat div { flex: 1 1 120px; background: #202c33; border-radius: 8px; padding: 10px 12px; }
+.stat b { display: block; font-size: 20px; }
+.stat span { font-size: 12px; color: #8696a0; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #222d34; vertical-align: top; word-break: break-word; }
+th { color: #8696a0; font-weight: 500; }
+input, select, textarea { background: #2a3942; border: 1px solid #36434a; color: #e9edef; border-radius: 6px; padding: 8px 10px; font-size: 14px; max-width: 100%; }
+button.act { background: #2a3942; color: #e9edef; border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+button.act.red { background: #7f1d1d; }
+button.act.grn { background: #14532d; }
+button.act:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.muted { color: #8696a0; font-size: 12.5px; }
+.bubble { background: #202c33; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.bubble .meta { font-size: 11.5px; color: #8696a0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bub-me { border-left: 3px solid #005c4b; }
+.bub-them { border-left: 3px solid #333; }
+.removed { background: #3b1d1d; border-left: 3px solid #7f1d1d; }
+#whoami { font-size: 12.5px; color: #8696a0; }
+#hub { display: none; }
+#hubtxt { padding: 40px 16px; text-align: center; color: #8696a0; }
+.dlg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 50; padding: 18px; }
+.dlgbox { background: #111b21; border-radius: 12px; padding: 18px; width: min(520px, 95vw); max-height: 88vh; overflow-y: auto; }
+.dlgbox h3 { margin: 0 0 10px; }
+.dlgbox .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.flagrow { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #222d34; }
+.flagrow:last-child { border-bottom: 0; }
+.flagrow .lb { font-size: 14px; }
+.flagrow .lb small { display: block; color: #8696a0; font-weight: 400; }
+canvas, video, img.mediapv { max-width: 100%; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>ChatNest Admin</h1>
+  <div class="sub">Administrator sign-in</div>
+  <button id="lbtn"><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.6 30.2.5 24 .5 14.6.5 6.5 5.9 2.6 13.8l7.8 6.1C12.3 13.9 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.6-4.9 7.3l7.6 5.9c4.4-4.1 7.1-10.2 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.1c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.8-6.1C1 16.1 0 19.9 0 23.5s1 7.4 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 46.5c6.2 0 11.5-2 15.4-5.5l-7.6-5.9c-2.1 1.4-4.8 2.3-7.8 2.3-6.4 0-11.7-4.3-13.6-10.1l-7.8 6.1C6.5 41.6 14.6 46.5 24 46.5z"/></svg><span>Continue with Google</span></button>
+  <div id="lerr"></div>
+</div>
+<div id="hub">
+  <header>
+    <button id="btnMenu" title="Menu">☰</button>
+    <h1>ChatNest Admin</h1>
+    <button id="btnRefresh" title="Refresh">↻</button>
+    <button id="btnLogout" title="Sign out">Sign out</button>
+  </header>
+  <nav>
+    <button data-sec="dash" class="on">Dashboard</button>
+    <button data-sec="users">Users</button>
+    <button data-sec="convs">Conversations</button>
+    <button data-sec="msgs">Messages</button>
+    <button data-sec="media">Storage</button>
+    <button data-sec="settings">Settings</button>
+    <button data-sec="audit">Audit log</button>
+  </nav>
+  <div id="menuBack" class="hidden"></div>
+  <aside id="drawer">
+    <div class="dhead">ChatNest Admin</div>
+    <div id="dList"></div>
+  </aside>
+  <main>
+    <div id="hubtxt"></div>
+    <div id="sec-dash" class="sec"></div>
+    <div id="sec-users" class="sec" style="display:none"></div>
+    <div id="sec-convs" class="sec" style="display:none"></div>
+    <div id="sec-msgs" class="sec" style="display:none"></div>
+    <div id="sec-media" class="sec" style="display:none"></div>
+    <div id="sec-locations" class="sec" style="display:none"></div>
+    <div id="sec-calls" class="sec" style="display:none"></div>
+    <div id="sec-bans" class="sec" style="display:none"></div>
+    <div id="sec-reports" class="sec" style="display:none"></div>
+    <div id="sec-notif" class="sec" style="display:none"></div>
+    <div id="sec-flags" class="sec" style="display:none"></div>
+    <div id="sec-retention" class="sec" style="display:none"></div>
+    <div id="sec-terms" class="sec" style="display:none"></div>
+    <div id="sec-settings" class="sec" style="display:none"></div>
+    <div id="sec-audit" class="sec" style="display:none"></div>
+    <div id="sec-status" class="sec" style="display:none"></div>
+    <div id="sec-security" class="sec" style="display:none"></div>
+  </main>
+</div>
+
+<div class="dlg" id="banDlg"><div class="dlgbox">
+  <h3>Ban this user?</h3>
+  <div class="muted">The user is restricted immediately (server-side) and sees a notice when they open ChatNest.</div>
+  <div style="margin-top:12px">
+    <select id="banReasonSel" style="width:100%">
+      <option value="">— choose a reason —</option>
+      <option>Spam</option>
+      <option>Harassment</option>
+      <option>Abusive messages</option>
+      <option>Inappropriate content</option>
+      <option>Unapproved media</option>
+      <option>Repeated violations</option>
+      <option>Impersonation</option>
+      <option>Fraud/scam behavior</option>
+      <option>Malicious behavior</option>
+      <option>Terms violation</option>
+      <option>Other</option>
+    </select>
+    <input id="banReasonCustom" placeholder="Custom reason (optional)" style="width:100%;margin-top:8px">
+  </div>
+  <div class="actions">
+    <button class="act" id="banCancel">Cancel</button>
+    <button class="act red" id="banOk" disabled>Ban user</button>
+  </div>
+</div></div>
+
+<div class="dlg" id="reasonDlg"><div class="dlgbox">
+  <h3>Delete this message?</h3>
+  <div class="muted">This will remove the message and its associated stored media.</div>
+  <div style="margin-top:12px">
+    <select id="reasonSel" style="width:100%">
+      <option value="">— choose a reason —</option>
+      <option>Inappropriate content</option>
+      <option>Spam</option>
+      <option>Harassment</option>
+      <option>Unsafe content</option>
+      <option>Privacy concern</option>
+      <option>Copyright concern</option>
+      <option>Malicious content</option>
+      <option>Unwanted media</option>
+      <option>Storage cleanup</option>
+      <option>User request</option>
+      <option>Policy violation</option>
+      <option>Other</option>
+    </select>
+    <input id="reasonCustom" placeholder="Custom reason (optional)" style="width:100%;margin-top:8px">
+  </div>
+  <div class="actions">
+    <button class="act" id="reasonCancel">Cancel</button>
+    <button class="act red" id="reasonOk" disabled>Delete</button>
+  </div>
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+'use strict';
+var SB_URL = 'https://ltcwjfywpxoklllustzx.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0Y3dqZnl3cHhva2xsbHVzdHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTAwMjEsImV4cCI6MjEwNTkyNjAyMX0.4bl5sKnmdALi9pF4Dp6LJs1uCLPnoAImugkhlUmAlmg';
+var D = { myId: null, isAdmin: false, users: {}, convs: [], msgs: [], settings: {}, audit: [], stats: null, storageStats: null, chat: null, deleteQueue: null };
+function el(id) { return document.getElementById(id); }
+function client() {
+  if (window.__sbMock) return window.__sbMock;
+  if (!window.sb) { try { window.sb = window.supabase.createClient(SB_URL, SB_KEY); } catch (e) { return null; } }
+  return window.sb;
+}
+function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return c === '&' ? '&' + 'amp;' : c === '<' ? '&' + 'lt;' : c === '>' ? '&' + 'gt;' : c === '"' ? '&' + 'quot;' : '&' + '#39;'; }); }
+function fmtT(iso) { try { return new Date(iso).toLocaleString(); } catch (e) { return String(iso || ''); } }
+function fmtMB(b) { if (!b) return '0 MB'; var u = ['B', 'KB', 'MB', 'GB']; var i = 0; while (b >= 1024 && i < 3) { b = b / 1024; i++; } return b.toFixed(1) + ' ' + u[i]; }
+
+var FLAGS = [
+  ['google_login', 'Google login', 'Users can sign in (app-level switch; new accounts are also blocked server-side by the registration toggle)'],
+  ['messaging', 'Messaging', 'Text messages'],
+  ['media_upload', 'Media uploads', 'Allow new photo/video/document/audio uploads'],
+  ['image_sharing', 'Image sharing', 'Photos'],
+  ['video_sharing', 'Video sharing', 'Videos'],
+  ['document_sharing', 'Document sharing', 'Files and documents'],
+  ['audio_sharing', 'Audio sharing', 'Voice messages and audio files'],
+  ['reactions', 'Reactions', 'Message reactions'],
+  ['profile_edit', 'Profile editing', 'Users editing their profile'],
+  ['username_changes', 'Username changes', 'Users changing their @username'],
+  ['notifications', 'Notifications', 'Push notifications'],
+  ['search', 'Search', 'Message and user search'],
+  ['group_features', 'Group features', 'Group-related features'],
+  ['audio_calls', 'Audio calls', 'One-to-one audio calls'],
+  ['video_calls', 'Video calls', 'One-to-one video calls'],
+  ['location_sharing', 'Location sharing', 'Current location messages'],
+  ['live_location', 'Live location', 'Continuous live location sharing'],
+  ['new_conversations', 'New conversations', 'Users starting new chats'],
+  ['registration', 'Registration', 'Allow new users to join ChatNest']
+];
+
+async function isAdminNow(c) {
+  try { var r = await c.rpc('am_i_admin'); return !!(r && r.data); } catch (e) { return false; }
+}
+
+async function begin(user) {
+  el('login').style.display = 'none';
+  el('hub').style.display = 'block';
+  el('whoami') && (el('whoami').textContent = user.email || '');
+  var c = client();
+  D.myId = user.id;
+  D.isAdmin = await isAdminNow(c);
+  if (!D.isAdmin) {
+    el('hubtxt').innerHTML = '<div class="card"><h3>Not authorized</h3><div>This Google account is not authorized to access the ChatNest Admin Panel.</div>'
+      + '<div class="row" style="margin-top:14px"><button class="act" id="naChange">Change account</button><button class="act grn" id="naRetry">Try again</button></div>'
+      + '<div class="muted" style="margin-top:10px">Signed in as ' + esc(user.email || 'unknown') + '.</div></div>';
+    el('hubtxt').style.display = 'block';
+    el('naChange').onclick = async function () { try { await client().auth.signOut(); } catch (e) {} resetLogin(); };
+    el('naRetry').onclick = async function () { D.myId = null; el('hubtxt').style.display = 'none'; await begin(user); };
+    return;
+  }
+  el('hubtxt').style.display = 'none';
+  await loadAll();
+}
+
+async function loadAll() {
+  var c = client(); if (!c || !D.isAdmin) return;
+  D.users = {}; D.convs = []; D.msgs = []; D.settings = {};
+  try {
+    var u = (await c.from('profiles').select('*').order('created_at', { ascending: true })).data || [];
+    u.forEach(function (p) { D.users[p.id] = p; });
+    D.convs = (await c.from('conversations').select('*').order('created_at', { ascending: true })).data || [];
+    D.msgs = (await c.from('messages').select('*').order('created_at', { ascending: false }).limit(1000)).data || [];
+    try {
+      var st = (await c.from('app_settings').select('key, value')).data || [];
+      st.forEach(function (r) { D.settings[r.key] = (r.value && r.value.enabled !== undefined) ? r.value.enabled : r.value; });
+    } catch (e) {}
+    try { D.stats = (await c.rpc('admin_stats')).data; } catch (e) { D.stats = null; }
+    try { D.storageStats = (await c.rpc('admin_storage_stats')).data; } catch (e) { D.storageStats = null; }
+    try { D.audit = (await c.rpc('admin_get_audit', { limit: 200 })).data || []; } catch (e) { D.audit = []; }
+  } catch (e) { console.warn('admin load error', e); }
+  renderAll();
+}
+
+function userName(id) { var p = D.users[id]; return p ? (p.name || p.username || p.gmail || id.slice(0, 8)) : (id || '?').slice(0, 8); }
+
+function renderAll() { renderDash(); renderUsers(); renderConvs(); renderMsgs(); renderMedia(); renderLocations(); renderCalls(); renderBans(); renderReports(); renderFlags(); renderRetention(); renderNotif(); renderTerms(); renderSettings(); renderAudit(); renderStatus(); renderSecurity(); }
+
+function renderDash() {
+  var s = el('sec-dash');
+  var st = D.stats || {};
+  var ss = D.storageStats || {};
+  s.innerHTML = '<div class="stat">'
+    + '<div><b>' + Object.keys(D.users).length + '</b><span>Users</span></div>'
+    + '<div><b>' + D.convs.length + '</b><span>Conversations</span></div>'
+    + '<div><b>' + (st.messages != null ? st.messages : D.msgs.length) + '</b><span>Messages</span></div>'
+    + '<div><b>' + (st.banned != null ? st.banned : Object.values(D.users).filter(function (p) { return p.banned; }).length) + '</b><span>Banned users</span></div>'
+    + '<div><b>' + (ss.media_messages != null ? ss.media_messages : '-') + '</b><span>Media messages</span></div>'
+    + '<div><b>' + (ss.storage_bytes != null ? fmtMB(ss.storage_bytes) : '-') + '</b><span>Storage used</span></div>'
+    + '<div><b>' + (ss.calls != null ? ss.calls : '-') + '</b><span>Calls (metadata only)</span></div>'
+    + '<div><b>' + (ss.cleanup_pending != null ? ss.cleanup_pending : '-') + '</b><span>Cleanups pending</span></div>'
+    + '</div>'
+    + '<div class="card"><h3>Activity</h3>'
+    + '<div class="muted">Active users (last 24h): <b>' + Object.values(D.users).filter(function (p) { try { return p.last_seen_at && (Date.now() - new Date(p.last_seen_at).getTime()) < 86400000; } catch (e) { return false; } }).length + '</b>'
+    + ' \u00b7 Banned: <b>' + Object.values(D.users).filter(function (p) { return p.banned; }).length + '</b></div>'
+    + '<div style="margin-top:8px" class="muted">Recent admin actions:</div>'
+    + (D.audit.slice(0, 5).map(function (a) { return '<div class="bubble" style="padding:6px 10px"><b>' + esc(a.action) + '</b> <span class="muted">' + esc(a.target || '') + ' \u00b7 ' + fmtT(a.created_at) + '</span></div>'; }).join('') || '<div class="muted">None yet.</div>')
+    + '</div>'
+    + '<div class="card"><h3>Announcement</h3><div class="row"><input id="annInp" style="flex:1" placeholder="Broadcast an announcement to all users…" value="' + esc((D.settings.announcement && D.settings.announcement.text) || '') + '"><button class="act grn" id="annSet">Send</button><button class="act red" id="annClear">Clear</button></div></div>';
+  el('annSet').onclick = function () { setSetting('announcement', { text: el('annInp').value }); };
+  el('annClear').onclick = function () { setSetting('announcement', { text: '' }); };
+}
+function renderLocations() {
+  var s = el('sec-locations');
+  var locs = D.msgs.filter(function (m) { return (m.kind || '').toLowerCase() === 'location'; });
+  s.innerHTML = '<div class="card"><h3>Location messages</h3>'
+    + (locs.slice(0, 100).map(function (m) {
+        var L = {}; try { L = JSON.parse(m.content || '{}') || {}; } catch (e) {}
+        return '<div class="bubble"><b>' + (L.t === 'live' ? 'Live location' : 'Current location') + '</b> <span class="muted">' + (typeof L.lat === 'number' ? L.lat.toFixed(5) + ', ' + L.lng.toFixed(5) : '') + '</span>'
+          + (L.stopped ? ' <span class="muted">(stopped)</span>' : '')
+          + '<div class="meta"><span>' + esc(userName(m.sender)) + '</span><span>' + fmtT(m.created_at) + '</span>'
+          + (m.admin_removed ? '<span class="muted">removed</span>' : ' <button class="act red" data-del="' + esc(m.id) + '">Delete</button>') + '</div></div>';
+      }).join('') || '<div class="muted">No location messages yet.</div>')
+    + '</div>';
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+function renderCalls() {
+  var s = el('sec-calls');
+  var calls = D.msgs.filter(function (m) { return (m.kind || '').toLowerCase() === 'call'; });
+  s.innerHTML = '<div class="card"><h3>Call history (metadata only)</h3><div class="muted" style="margin-bottom:8px">Calls are never recorded. No call audio or video exists anywhere in ChatNest — only the fact that a call happened.</div>'
+    + (calls.slice(0, 100).map(function (m) {
+        var M = {}; try { M = JSON.parse(m.content || '{}') || {}; } catch (e) {}
+        return '<div class="bubble"><b>' + (M.v ? 'Video call' : 'Audio call') + '</b> <span class="muted">' + (M.s || '') + (M.d ? ' - ' + Math.floor(M.d / 60) + ':' + String(Math.round(M.d % 60)).padStart(2, '0') : '') + '</span>'
+          + '<div class="meta"><span>' + esc(userName(m.sender)) + ' → partner</span><span>' + fmtT(m.created_at) + '</span></div></div>';
+      }).join('') || '<div class="muted">No calls yet.</div>')
+    + '</div>';
+}
+function renderBans() {
+  var s = el('sec-bans');
+  var banned = Object.values(D.users).filter(function (p) { return p.banned; });
+  s.innerHTML = '<div class="card"><h3>Banned users</h3>'
+    + (banned.map(function (p) {
+        return '<div class="bubble"><b>' + esc(p.name || '(no name)') + '</b> <span class="muted">' + esc(p.gmail || '') + '</span>'
+          + (p.ban_reason ? ' - Reason: ' + esc(p.ban_reason) : '')
+          + '<div class="meta"><span>' + fmtT(p.last_seen_at) + '</span><button class="act grn" data-unban="' + esc(p.id) + '">Unban</button></div></div>';
+      }).join('') || '<div class="muted">No banned users.</div>')
+    + '</div>';
+  s.querySelectorAll('[data-unban]').forEach(function (b) { b.onclick = function () { banFlow(b.getAttribute('data-unban'), false); }; });
+}
+function renderReports() {
+  var s = el('sec-reports');
+  s.innerHTML = '<div class="card"><h3>Reports</h3><div class="muted">NOT IMPLEMENTED — ChatNest currently has no in-app user report feature, so there are no reports to show. (If you want a "Report user/message" button in the app, ask for it and it can be added properly — this page will then list those reports.)</div></div>';
+}
+function renderNotif() {
+  var s = el('sec-notif');
+  var on = D.settings.notifications !== undefined ? D.settings.notifications : true;
+  s.innerHTML = '<div class="card"><h3>Notifications</h3>'
+    + '<div class="flagrow"><div class="lb">In-app + background notifications<small>Users see a Notifications row in their settings menu. Background notifications work while the browser keeps the page alive (web/PWA limitation).</small></div>'
+    + '<label><input type="checkbox" data-flag="notifications"' + (on ? ' checked' : '') + '> <span>ON / OFF</span></label></div></div>';
+  var t = s.querySelector('[data-flag=notifications]');
+  t.onchange = function () { setSetting('notifications', { enabled: t.checked }); };
+}
+function renderStatus() {
+  var s = el('sec-status');
+  var ss = D.storageStats || {}; var st = D.stats || {};
+  s.innerHTML = '<div class="card"><h3>System status</h3><table>'
+    + '<tr><th>Application</th><td>ChatNest v37 (web/PWA on GitHub Pages)</td></tr>'
+    + '<tr><th>Database usage</th><td>' + (ss.db_bytes ? fmtMB(ss.db_bytes) : '-') + '</td></tr>'
+    + '<tr><th>Media storage used</th><td>' + (ss.storage_bytes != null ? fmtMB(ss.storage_bytes) : '-') + '</td></tr>'
+    + '<tr><th>Stored media</th><td>' + (ss.media_messages != null ? ss.media_messages : '-') + ' files</td></tr>'
+    + '<tr><th>Orphaned objects</th><td>' + (ss.orphaned_objects != null ? ss.orphaned_objects : '-') + '</td></tr>'
+    + '<tr><th>Cleanup failures</th><td>' + (ss.cleanup_pending != null ? ss.cleanup_pending : '-') + '</td></tr>'
+    + '<tr><th>Realtime</th><td>Live (Supabase Realtime channels: messages, settings, typing, calls)</td></tr>'
+    + '<tr><th>Calls</th><td>' + (st.messages != null ? ss.calls != null ? ss.calls : '-' : '-') + ' calls recorded (metadata only)</td></tr>'
+    + '</table><div class="row" style="margin-top:10px"><button class="act" onclick="loadAll()">Refresh</button></div></div>';
+}
+function renderSecurity() {
+  var s = el('sec-security');
+  s.innerHTML = '<div class="card"><h3>Security summary</h3><table>'
+    + '<tr><th>Admin authorization</th><td>Server-side only (database function checks the signed-in Supabase user; no admin rights in the page)</td></tr>'
+    + '<tr><th>Authentication</th><td>Supabase Auth + Google OAuth only (email OTP fully removed)</td></tr>'
+    + '<tr><th>Bans</th><td>Enforced in the database — banned users cannot write messages</td></tr>'
+    + '<tr><th>Terms enforcement</th><td>Users who have not accepted the current Terms version cannot write messages (database trigger)</td></tr>'
+    + '<tr><th>Blocking</th><td>Server-side blocks table + message/conversation triggers</td></tr>'
+    + '<tr><th>Media storage</th><td>Private bucket — only conversation participants can read/write (RLS), deleted with the message</td></tr>'
+    + '<tr><th>Feature flags</th><td>All enforced by database triggers, not by hidden buttons</td></tr>'
+    + '<tr><th>Secrets</th><td>Only the public anon key ships in the frontend; service role key is never in the app</td></tr>'
+    + '<tr><th>Call privacy</th><td>Calls are peer-to-peer WebRTC; no call audio/video is ever stored or accessible to anyone, including the admin</td></tr>'
+    + '</table></div>';
+}
+function renderFlags() {
+  var s = el('sec-flags');
+  s.innerHTML = '<div class="card"><h3>Feature Controls</h3><div id="flagRows">'
+    + FLAGS.map(function (f) {
+        var on = D.settings[f[0]] !== undefined ? D.settings[f[0]] : true;
+        return '<div class="flagrow"><div class="lb">' + esc(f[1]) + '<small>' + esc(f[2]) + '</small></div>'
+          + '<label><input type="checkbox" data-flag="' + esc(f[0]) + '"' + (on ? ' checked' : '') + '> <span>ON / OFF</span></label></div>';
+      }).join('')
+    + '</div><div class="muted" style="margin-top:8px">Every toggle is stored in the backend, enforced by database rules and reaches open apps in seconds.</div></div>';
+  s.querySelectorAll('#flagRows [data-flag]').forEach(function (t) {
+    t.onchange = function () { setSetting(t.getAttribute('data-flag'), { enabled: t.checked }); };
+  });
+}
+function renderRetention() {
+  var s = el('sec-retention');
+  var ret = D.settings.media_retention; var retDays = (ret && ret.days) || 0;
+  var lim = D.settings.storage_limit_mb; var limMB = (lim && lim.mb) || 250;
+  var upLimRaw = D.settings.upload_limit_mb; var upLim = (upLimRaw && upLimRaw.mb) || 500;
+  var locRetRaw = D.settings.location_retention; var locRet = (locRetRaw && locRetRaw.days) || 0;
+  s.innerHTML = '<div class="card"><h3>Media retention</h3><div class="row"><select id="retSel">'
+    + [[0, 'Never automatically delete'], [1, '1 day'], [3, '3 days'], [7, '7 days'], [15, '15 days'], [30, '30 days'], [60, '60 days']].map(function (o) {
+      return '<option value="' + o[0] + '"' + (retDays === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+    }).join('') + '</select><span class="muted">Stored media older than this is cleaned server-side; the chat shows a removal placeholder. Text messages are never touched.</span></div></div>'
+    + '<div class="card"><h3>Upload limit</h3><div class="row"><select id="upLimSel">'
+    + [[50, '50 MB'], [100, '100 MB'], [250, '250 MB'], [500, '500 MB']].map(function (o) { return '<option value="' + o[0] + '"' + (upLim === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')
+    + '</select><span class="muted">Maximum size of a single uploaded file. Enforced by the app and by a database storage rule.</span></div></div>'
+    + '<div class="card"><h3>Location retention</h3><div class="row"><select id="locRetSel">'
+    + [[0, 'Keep location messages forever'], [1, 'Delete after 1 day'], [3, 'Delete after 3 days'], [7, 'Delete after 7 days'], [15, 'Delete after 15 days'], [30, 'Delete after 30 days']].map(function (o) { return '<option value="' + o[0] + '"' + (locRet === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('')
+    + '</select><span class="muted">Expired location records are removed server-side during cleanup. Text and media messages are not affected.</span></div></div>'
+    + '<div class="card"><h3>Storage policy</h3><div class="row"><input id="limInp" type="number" min="1" style="width:110px" value="' + limMB + '"> <span>MB — maximum total media storage target</span><button class="act grn" id="limSet">Save</button></div><div class="muted">ChatNest\'s own application-level policy. It does not change your actual Supabase plan quota. When the limit is reached, new uploads are politely refused.</div></div>';
+  el('retSel').onchange = function () { setSetting('media_retention', { days: parseInt(el('retSel').value, 10) || 0 }); };
+  el('upLimSel').onchange = function () { setSetting('upload_limit_mb', { mb: parseInt(el('upLimSel').value, 10) || 500 }); };
+  el('locRetSel').onchange = function () { setSetting('location_retention', { days: parseInt(el('locRetSel').value, 10) || 0 }); };
+  el('limSet').onclick = function () { setSetting('storage_limit_mb', { mb: Math.max(1, parseInt(el('limInp').value, 10) || 250) }); };
+}
+function renderTerms() {
+  var s = el('sec-terms');
+  var t = D.settings.terms || {};
+  var cur = t.version || '1.0';
+  var content = Array.isArray(t.content) && t.content.length ? t.content : null;
+  var total = Object.keys(D.users).length;
+  var accepted = Object.values(D.users).filter(function (p) {
+    if (!p.terms_agreed_at) return false;
+    if (t.require_new === false) return true;
+    return p.terms_version === cur;
+  }).length;
+  s.innerHTML = '<div class="card"><h3>Terms & Conditions</h3><table>'
+    + '<tr><th>Current version</th><td>' + esc(cur) + '</td></tr>'
+    + '<tr><th>Published</th><td>' + fmtT(t.published_at || null) + '</td></tr>'
+    + '<tr><th>Require re-acceptance of new versions</th><td>' + (t.require_new === false ? 'OFF (old acceptance counts)' : 'ON') + '</td></tr>'
+    + '<tr><th>Acceptance</th><td>' + accepted + ' / ' + total + ' users accepted the current version</td></tr>'
+    + '</table></div>'
+    + '<div class="card"><h3>Current text</h3><textarea id="termsText" rows="10" style="width:100%">' + esc((content || DEFAULT_TERMS).join('\n')) + '</textarea>'
+    + '<div class="muted">Each line becomes one paragraph. If you publish a NEW version number, every user who has not accepted that version will see the Terms once at their next sign-in (only once per version).</div>'
+    + '<div class="row" style="margin-top:8px"><input id="termsVer" placeholder="New version, e.g. 2.0" style="width:150px" value="' + esc(cur) + '">'
+    + '<button class="act grn" id="termsPub">Publish new version</button>'
+    + '<button class="act" id="termsSave">Save text (same version)</button>'
+    + '<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="termsReq"' + (t.require_new === false ? '' : ' checked') + '> require re-acceptance</label></div></div>';
+  el('termsPub').onclick = function () {
+    var v = el('termsVer').value.trim() || '1.0';
+    if (v === cur && !confirm('This version number is already published. Users who accepted it will not be asked again. Continue?')) return;
+    setSetting('terms', { version: v, content: el('termsText').value.split('\n').filter(function (x) { return x.trim(); }), published_at: new Date().toISOString(), require_new: el('termsReq').checked });
+    toastAdmin('Terms version ' + v + ' published');
+  };
+  el('termsSave').onclick = function () {
+    setSetting('terms', { version: cur, content: el('termsText').value.split('\n').filter(function (x) { return x.trim(); }), published_at: t.published_at || new Date().toISOString(), require_new: el('termsReq').checked });
+    toastAdmin('Terms text saved (version ' + cur + ')');
+  };
+}
+var DEFAULT_TERMS = [
+  'Welcome to ChatNest. By using ChatNest you agree to these terms.',
+  '1. Messages and content. You are responsible for what you send. Do not send content that is illegal, harassing, hateful, sexually explicit involving minors, or that infringes other people\u2019s rights. Do not spam other users.',
+  '2. Media. Photos, videos, documents and audio files you send are stored only so the people in your conversation can see them. Administrators may remove specific media that violates these terms.',
+  '3. Location sharing. Location sharing is voluntary and happens only when you choose it. Current location sends one position; live location keeps updating only for the duration you pick and then stops automatically.',
+  '4. Calls. Audio and video calls connect you directly with the other person. Calls are never recorded and no call audio or video is ever stored by ChatNest. Only the fact that a call happened (and its length) is kept in the chat history.',
+  '5. Privacy. Your account belongs to you. Administrators can moderate content that violates these terms and can suspend accounts that abuse the service.',
+  '6. Moderation and bans. Accounts that break these rules can be suspended. If your account is suspended you will see a notice when you open the app.',
+  '7. Data retention. Media may be automatically removed after the retention period set by the administrator. Your messages may be moderated individually if they violate the terms.',
+  '8. No warranty. ChatNest is provided as-is. Keep your own backups of anything important.'
+];
+
+function renderUsers() {
+  var s = el('sec-users');
+  var rows = Object.values(D.users).sort(function (a, b) { return String(b.created_at || '').localeCompare(String(a.created_at || '')); });
+  s.innerHTML = '<div class="card"><input id="userSearch" placeholder="Search by name, @username or gmail…" style="width:100%"></div><div class="card"><table id="userTable"><tr><th>User</th><th>Status</th><th>Last seen</th><th></th></tr>'
+    + rows.map(function (p) {
+      return '<tr data-uid="' + esc(p.id) + '"><td><b>' + esc(p.name || '(no name)') + '</b> ' + (p.username ? '<span class="muted">@' + esc(p.username) + '</span>' : '') + '<br><span class="muted">' + esc(p.gmail || '') + '</span></td>'
+        + '<td>' + (p.banned ? '<b style="color:#f66">BANNED</b>' : 'Active') + '</td>'
+        + '<td class="muted">' + fmtT(p.last_seen_at) + '</td>'
+        + '<td style="white-space:nowrap"><button class="act" data-open="' + esc(p.id) + '">View</button> '
+        + (p.banned ? '<button class="act grn" data-unban="' + esc(p.id) + '">Unban</button>' : '<button class="act red" data-ban="' + esc(p.id) + '">Ban</button>') + '</td></tr>';
+    }).join('') + '</table></div>';
+  el('userSearch').oninput = function () {
+    var q = this.value.toLowerCase();
+    var tb = el('userTable');
+    tb.querySelectorAll('tr[data-uid]').forEach(function (tr) {
+      tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  };
+  s.querySelectorAll('[data-ban]').forEach(function (b) { b.onclick = function () { banFlow(b.getAttribute('data-ban'), true); }; });
+  s.querySelectorAll('[data-unban]').forEach(function (b) { b.onclick = function () { banFlow(b.getAttribute('data-unban'), false); }; });
+  s.querySelectorAll('[data-open]').forEach(function (b) { b.onclick = function () { userDlg(b.getAttribute('data-open')); }; });
+}
+
+function renderConvs() {
+  var s = el('sec-convs');
+  s.innerHTML = D.convs.map(function (cv) {
+    return '<div class="card"><div class="row"><b>' + esc(userName(cv.user_a)) + ' ↔ ' + esc(userName(cv.user_b)) + '</b>'
+      + '<span class="muted">' + fmtT(cv.created_at) + '</span>'
+      + '<span style="flex:1"></span><button class="act" data-chat="' + esc(cv.id) + '">Open conversation</button></div></div>';
+  }).join('') || '<div class="card">No conversations yet.</div>';
+  s.querySelectorAll('[data-chat]').forEach(function (b) { b.onclick = function () { openChat(b.getAttribute('data-chat')); }; });
+}
+
+function msgBubble(m) {
+  var me = m.sender === D.myId;
+  var body;
+  var k = (m.kind || 'text').toLowerCase();
+  var meta = {};
+  try { if (k === 'call' || k === 'location') meta = JSON.parse(m.content || '{}') || {}; } catch (e) {}
+  if (m.admin_removed) {
+    body = '⚠️ ' + esc(m.content || 'This message was removed by an administrator.') + (m.admin_reason ? ' <span class="muted">(reason logged)</span>' : '');
+  } else if (k === 'location') {
+    body = '📍 ' + (meta.t === 'live' ? 'Live location' : 'Current location') + ' <span class="muted">' + (typeof meta.lat === 'number' ? (meta.lat.toFixed(5) + ', ' + meta.lng.toFixed(5)) : '') + '</span>';
+  } else if (k === 'call') {
+    body = (meta.v ? '📹 Video call' : '📞 Audio call') + (meta.s === 'missed' ? ' — Missed call' : meta.s === 'declined' ? ' — Declined' : (meta.d ? ' · ' + Math.floor(meta.d / 60) + ':' + String(Math.round(meta.d % 60)).padStart(2, '0') : ''));
+  } else if (m.media) {
+    body = '📎 ' + esc(k) + ' <span class="muted">' + esc(m.media) + '</span>';
+  } else {
+    body = esc(m.content || '');
+  }
+  return '<div class="bubble ' + (m.admin_removed ? 'removed' : me ? 'bub-me' : 'bub-them') + '"><div>' + body + '</div><div class="meta"><span>' + esc(userName(m.sender)) + '</span><span>' + fmtT(m.created_at) + '</span>'
+    + (m.admin_removed ? '' : ' <button class="act red" data-del="' + esc(m.id) + '">Delete</button>') + '</div></div>';
+}
+
+function openChat(convId) {
+  var cv = D.convs.find(function (x) { return x.id === convId; }); if (!cv) return;
+  D.chat = convId;
+  var list = D.msgs.filter(function (m) { return m.conversation_id === convId; }).sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
+  var s = el('sec-convs');
+  s.innerHTML = '<div class="row"><button class="act" id="backConvs">← All conversations</button><b>' + esc(userName(cv.user_a)) + ' ↔ ' + esc(userName(cv.user_b)) + '</b><span class="muted">' + list.length + ' messages</span></div>'
+    + list.map(msgBubble).join('') || '<div class="card">No messages in this conversation.</div>';
+  el('backConvs').onclick = function () { D.chat = null; renderConvs(); };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function renderMsgs() {
+  if (D.chat) return openChat(D.chat);
+  var s = el('sec-msgs');
+  s.innerHTML = '<div class="card"><input id="msgSearch" placeholder="Search all messages…" style="width:100%"></div>'
+    + '<div id="msgList">' + D.msgs.slice(0, 100).map(msgBubble).join('') + '</div>';
+  el('msgSearch').oninput = function () {
+    var q = this.value.toLowerCase();
+    el('msgList').querySelectorAll('.bubble').forEach(function (b, i) {
+      b.style.display = !q || b.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function askDelete(msgId) {
+  D.deleteQueue = msgId;
+  el('reasonSel').value = '';
+  el('reasonCustom').value = '';
+  el('reasonOk').disabled = true;
+  el('reasonDlg').style.display = 'flex';
+}
+el('reasonSel').onchange = function () { el('reasonOk').disabled = !el('reasonSel').value && !el('reasonCustom').value; };
+el('reasonCustom').oninput = function () { el('reasonOk').disabled = !el('reasonSel').value && !el('reasonCustom').value; };
+el('reasonCancel').onclick = function () { el('reasonDlg').style.display = 'none'; D.deleteQueue = null; };
+el('reasonOk').onclick = async function () {
+  var id = D.deleteQueue; if (!id) return;
+  var reason = el('reasonCustom').value.trim() || el('reasonSel').value || 'Policy violation';
+  el('reasonDlg').style.display = 'none'; D.deleteQueue = null;
+  var m0 = D.msgs.find(function (x) { return x.id === id; });
+  var hadMedia = !!(m0 && m0.media) || !!(m0 && ['image', 'video', 'voice', 'audio', 'file', 'document'].indexOf(String(m0.kind || '').toLowerCase()) >= 0);
+  try {
+    var r = await client().rpc('admin_delete_message', { p_msg_id: id, p_reason: reason });
+    if (r && r.error) { alert('Delete failed: ' + r.error.message); }
+    else {
+      var m = D.msgs.find(function (x) { return x.id === id; });
+      if (m) { m.admin_removed = true; m.content = hadMedia ? 'This media was removed by an administrator.' : 'This message was removed by an administrator.'; m.media = ''; }
+      renderAll();
+      alert('Message deleted (database record + its storage object).');
+    }
+  } catch (e) { alert('Delete failed: ' + e.message); }
+};
+
+function renderMedia() {
+  var s = el('sec-media');
+  var ss = D.storageStats || {};
+  var mediaMsgs = D.msgs.filter(function (m) { return m.media; });
+  s.innerHTML = '<div class="card"><h3>Storage overview</h3><div class="stat">'
+    + '<div><b>' + (ss.storage_bytes != null ? fmtMB(ss.storage_bytes) : '-') + '</b><span>Storage used</span></div>'
+    + '<div><b>' + (ss.media_messages != null ? ss.media_messages : mediaMsgs.length) + '</b><span>Stored media</span></div>'
+    + '<div><b>' + (ss.images != null ? ss.images : '-') + '</b><span>Images</span></div>'
+    + '<div><b>' + (ss.videos != null ? ss.videos : '-') + '</b><span>Videos</span></div>'
+    + '<div><b>' + (ss.documents != null ? ss.documents : '-') + '</b><span>Documents</span></div>'
+    + '<div><b>' + (ss.audios != null ? ss.audios : '-') + '</b><span>Audio files</span></div>'
+    + '<div><b>' + (ss.orphaned_objects != null ? ss.orphaned_objects : '-') + '</b><span>Orphaned files</span></div>'
+    + '<div><b>' + (ss.cleanup_pending != null ? ss.cleanup_pending : '-') + '</b><span>Cleanup failures / pending</span></div>'
+    + '<div><b>' + (ss.app_upload_limit_mb != null ? ss.app_upload_limit_mb + ' MB' : '-') + '</b><span>Per-file upload limit (app policy)</span></div>'
+    + '<div><b>' + (ss.app_storage_target_mb != null ? ss.app_storage_target_mb + ' MB' : '-') + '</b><span>Total storage target (app policy)</span></div>'
+    + '</div>'
+    + '<div class="row" style="margin-top:12px"><button class="act" id="btnStorRefresh">Refresh</button><button class="act grn" id="btnCleanup">Cleanup Now</button><span class="muted">Cleanup deletes expired media, retries failed storage deletions and removes orphaned files — server-side.</span></div></div>'
+    + '<div class="card"><h3>Media in messages</h3>'
+    + (mediaMsgs.slice(0, 60).map(function (m) {
+      return '<div class="bubble"><b>' + esc(m.kind) + '</b> <span class="muted">' + esc(m.media) + '</span><div class="meta"><span>' + esc(userName(m.sender)) + '</span><span>' + fmtT(m.created_at) + '</span>'
+        + (m.admin_removed ? '<span class="muted">already removed</span>' : ' <button class="act red" data-del="' + esc(m.id) + '">Delete media</button>') + '</div></div>';
+    }).join('') || '<div class="muted">No stored media in recent messages.</div>')
+    + '</div>';
+  el('btnStorRefresh').onclick = function () { loadAll(); };
+  el('btnCleanup').onclick = async function () {
+    if (!confirm('Run storage cleanup now?\n\nThis deletes expired media (per the retention setting), retries pending storage deletions and removes orphaned files. Database record + Storage object are always cleaned together.')) return;
+    try {
+      var before = (D.storageStats && D.storageStats.storage_bytes) || 0;
+      var r = await client().rpc('admin_cleanup_media');
+      var d = (r && r.data) || {};
+      await loadAll();
+      var after = (D.storageStats && D.storageStats.storage_bytes) || 0;
+      alert('Cleanup finished.\n\nItems found & deleted: ' + ((d.retention_deleted || 0) + (d.orphans_deleted || 0) + (d.retried || 0)) + '\nFailed: ' + (d.failed || 0) + '\nExpired locations deleted: ' + (d.locations_deleted || 0) + '\n\nStorage before: ' + fmtMB(before) + '\nStorage after:  ' + fmtMB(after));
+      loadAll();
+    } catch (e) { alert('Cleanup failed: ' + e.message); }
+  };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function renderSettings() {
+  var s = el('sec-settings');
+  var reg = D.settings.registration !== undefined ? D.settings.registration : true;
+  var maint = D.settings.maintenance !== undefined ? D.settings.maintenance : false;
+  s.innerHTML = '<div class="card"><h3>Maintenance mode</h3><div class="flagrow"><div class="lb">Maintenance mode<small>Normal users see the maintenance screen; the admin panel keeps working.</small></div>'
+    + '<label><input type="checkbox" data-flag="maintenance"' + (maint ? ' checked' : '') + '> <span>ON / OFF</span></label></div>'
+    + '<div class="flagrow"><div class="lb">Allow new users (registration)<small>OFF: new Google accounts cannot create ChatNest accounts (enforced in the database).</small></div>'
+    + '<label><input type="checkbox" data-flag="registration"' + (reg ? ' checked' : '') + '> <span>ON / OFF</span></label></div></div>'
+    + '<div class="card"><h3>Quick links</h3><div class="row">'
+    + '<button class="act" onclick="openSection(\'flags\')">Feature Controls</button>'
+    + '<button class="act" onclick="openSection(\'retention\')">Retention & Limits</button>'
+    + '<button class="act" onclick="openSection(\'terms\')">Terms & Conditions</button>'
+    + '<button class="act" onclick="openSection(\'security\')">Security</button>'
+    + '</div></div>';
+  var mx = s.querySelector('[data-flag=maintenance]');
+  mx.onchange = function () { setSetting('maintenance', { enabled: mx.checked }); };
+  var rg = s.querySelector('[data-flag=registration]');
+  rg.onchange = function () { setSetting('registration', { enabled: rg.checked }); };
+}
+function renderAudit() {
+  var s = el('sec-audit');
+  s.innerHTML = D.audit.length
+    ? '<div class="card"><table><tr><th>When</th><th>Action</th><th>Target</th><th>Details</th></tr>'
+      + D.audit.map(function (a) { return '<tr><td class="muted">' + fmtT(a.created_at) + '</td><td><b>' + esc(a.action) + '</b></td><td>' + esc(a.target) + '</td><td class="muted">' + esc(a.meta ? JSON.stringify(a.meta) : '') + '</td></tr>'; }).join('') + '</table></div>'
+    : '<div class="card">No admin actions recorded yet.</div>';
+}
+
+async function setSetting(key, value) {
+  try {
+    var r = await client().rpc('admin_set_setting', { p_key: key, p_value: value });
+    if (r && r.error) alert('Could not save: ' + r.error.message);
+    D.settings[key] = (value && value.enabled !== undefined) ? value.enabled : value;
+    if (key === 'announcement') { D.settings[key] = value.text || ''; toastAdmin(value.text ? 'Announcement sent' : 'Announcement cleared'); renderDash(); return; }
+    toastAdmin(key + ' saved');
+    renderSettings();
+  } catch (e) { alert('Could not save: ' + e.message); }
+}
+function toastAdmin(t) { try { var d = document.createElement('div'); d.textContent = t; d.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#14532d;color:#fff;padding:10px 18px;border-radius:8px;z-index:99'; document.body.appendChild(d); setTimeout(function () { d.remove(); }, 2200); } catch (e) {} }
+
+var BANQ = null;
+function askBan(uid) {
+  BANQ = uid;
+  el('banReasonSel').value = '';
+  el('banReasonCustom').value = '';
+  el('banOk').disabled = true;
+  el('banDlg').style.display = 'flex';
+}
+el('banReasonSel').onchange = function () { el('banOk').disabled = !el('banReasonSel').value && !el('banReasonCustom').value; };
+el('banReasonCustom').oninput = function () { el('banOk').disabled = !el('banReasonSel').value && !el('banReasonCustom').value; };
+el('banCancel').onclick = function () { el('banDlg').style.display = 'none'; BANQ = null; };
+el('banOk').onclick = async function () {
+  var uid = BANQ; if (!uid) return;
+  var reason = el('banReasonCustom').value.trim() || el('banReasonSel').value || '';
+  el('banDlg').style.display = 'none'; BANQ = null;
+  await doBan(uid, true, reason);
+};
+async function banFlow(uid, toBan) {
+  var p = D.users[uid]; if (!p) return;
+  if (toBan) { askBan(uid); return; }
+  await doBan(uid, false, '');
+}
+async function doBan(uid, toBan, reason) {
+  var p = D.users[uid]; if (!p) return;
+  try {
+    var r = await client().from('profiles').update({ banned: toBan, ban_reason: toBan ? (reason || '') : '' }).eq('id', uid);
+    if (r && r.error) { alert('Failed: ' + r.error.message); return; }
+    p.banned = toBan; p.ban_reason = toBan ? reason : '';
+    toastAdmin(toBan ? 'User banned (enforced server-side)' : 'User unbanned');
+    loadAll();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function userDlg(uid) {
+  var p = D.users[uid]; if (!p) return;
+  var h = '<div class="dlgbox"><h3>' + esc(p.name || '(no name)') + '</h3>'
+    + '<div class="muted">' + esc(p.gmail || '') + (p.username ? ' · @' + esc(p.username) : '') + '</div>'
+    + '<table><tr><th>Status</th><td>' + (p.banned ? 'BANNED' + (p.ban_reason ? ' — ' + esc(p.ban_reason) : '') : 'Active') + '</td></tr>'
+    + '<tr><th>Created</th><td>' + fmtT(p.created_at) + '</td></tr>'
+    + '<tr><th>Last seen</th><td>' + fmtT(p.last_seen_at) + '</td></tr>'
+    + '<tr><th>Terms accepted</th><td>' + (p.terms_agreed_at ? fmtT(p.terms_agreed_at) : 'Not yet') + '</td></tr>'
+    + '<tr><th>Bio</th><td>' + esc(p.bio || '') + '</td></tr></table>'
+    + '<div class="actions"><button class="act" data-close="1">Close</button></div></div>';
+  var d = document.createElement('div'); d.className = 'dlg'; d.innerHTML = h;
+  document.body.appendChild(d); d.style.display = 'flex';
+  d.querySelector('[data-close]').onclick = function () { d.remove(); };
+}
+
+/* ---------- auth + boot ---------- */
+async function start() {
+  var c = client();
+  var lg = el('login');
+  if (!c) { lg.style.display = 'flex'; el('lerr').textContent = 'Could not load the Supabase library — check your connection.'; return; }
+  try {
+    c.auth.onAuthStateChange(function (ev, sess) {
+      try {
+        if (ev === 'SIGNED_OUT') resetLogin();
+        else if ((ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION') && sess && sess.user && !D.myId) begin(sess.user);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  var btn = el('lbtn');
+  btn.onclick = async function () {
+    var span = btn.querySelector('span'); if (span) span.textContent = 'Opening Google…';
+    el('lerr').textContent = '';
+    try {
+      var options = { redirectTo: location.href.split('#')[0].split('?')[0] };
+      var r = await c.auth.signInWithOAuth({ provider: 'google', options: options });
+      if (r && r.error) { el('lerr').textContent = r.error.message || 'Google sign-in failed'; }
+    } catch (e) {
+      el('lerr').textContent = (e && /google/i.test(String(e.message || e))) ? 'Google sign-in is not set up on the server yet (see the setup guide).' : (e.message || 'Google sign-in failed');
+    }
+    if (span) span.textContent = 'Continue with Google';
+  };
+  var sess = (await c.auth.getSession().catch(function () { return { data: null }; })).data;
+  if (sess && sess.session) { begin(sess.session.user); return; }
+  lg.style.display = 'flex';
+}
+function resetLogin() {
+  D = { myId: null, isAdmin: false, users: {}, convs: [], msgs: [], settings: {}, audit: [], stats: null, storageStats: null, chat: null, deleteQueue: null };
+  el('hub').style.display = 'none';
+  el('login').style.display = 'flex';
+}
+var SECTIONS = [
+  ['dash', 'Dashboard'], ['users', 'Users'], ['convs', 'Conversations'], ['msgs', 'Messages'],
+  ['media', 'Storage & Media'], ['locations', 'Locations'], ['calls', 'Calls'], ['bans', 'Bans'],
+  ['reports', 'Reports'], ['flags', 'Feature Controls'], ['retention', 'Retention & Limits'],
+  ['notif', 'Notifications'], ['terms', 'Terms & Conditions'], ['audit', 'Audit Log'],
+  ['status', 'System Status'], ['security', 'Security'], ['settings', 'Admin Settings'], ['logout', 'Logout']
+];
+function openSection(key) {
+  if (key === 'logout') { el('btnLogout').click(); return; }
+  document.querySelectorAll('.sec').forEach(function (x) { x.style.display = 'none'; });
+  var target = el('sec-' + key);
+  if (target) target.style.display = 'block';
+  document.querySelectorAll('#dList button, nav button').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-sec') === key); });
+  el('drawer').classList.remove('open');
+  el('menuBack').classList.add('hidden');
+  try { window.scrollTo(0, 0); } catch (e) {}
+}
+(function () {
+  var dList = el('dList');
+  var html = '';
+  SECTIONS.forEach(function (sec, i) {
+    if (i === 4 || i === 13) html += '<hr>';
+    html += '<button data-sec="' + sec[0] + '"' + (sec[0] === 'dash' ? ' class="on"' : '') + '>' + sec[1] + '</button>';
+  });
+  dList.innerHTML = html;
+  dList.querySelectorAll('button').forEach(function (b) { b.onclick = function () { openSection(b.getAttribute('data-sec')); }; });
+})();
+el('btnMenu').onclick = function () { el('drawer').classList.add('open'); el('menuBack').classList.remove('hidden'); };
+el('menuBack').onclick = function () { el('drawer').classList.remove('open'); el('menuBack').classList.add('hidden'); };
+/* v6.1 FIX 2: the top nav tabs lost their click handlers when the drawer was
+   added — they are wired to the same section switcher again. */
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.onclick = function () { openSection(b.getAttribute('data-sec')); };
+});
+el('btnRefresh').onclick = function () { if (D.isAdmin) loadAll(); };
+el('btnLogout').onclick = async function () { try { await client().auth.signOut(); } catch (e) {} resetLogin(); };
+start();
+</script>
+</body>
+</html>
