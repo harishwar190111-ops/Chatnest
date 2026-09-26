@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ChatNest Admin</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; font: 15px/1.5 system-ui, Roboto, sans-serif; background: #0b141a; color: #e9edef; }
+#login { position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #0b141a; z-index: 100; }
+#login h1 { font-size: 26px; margin: 0; }
+#login .sub { color: #8696a0; font-size: 14px; }
+#lbtn { display: flex; align-items: center; gap: 10px; padding: 13px 22px; border: 1px solid #444; border-radius: 8px; background: #fff; color: #1f1f1f; font-size: 16px; cursor: pointer; }
+#lerr { color: #f66; min-height: 20px; font-size: 14px; }
+header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #202c33; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; margin: 0; flex: 1; }
+header button { background: none; border: 0; color: #8696a0; font-size: 20px; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+header button.on { color: #53bdeb; }
+nav { display: flex; overflow-x: auto; gap: 6px; padding: 8px 12px; background: #111b21; position: sticky; top: 56px; z-index: 4; }
+nav button { border: 0; background: #202c33; color: #e9edef; padding: 8px 14px; border-radius: 16px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+nav button.on { background: #2a3942; color: #53bdeb; }
+main { padding: 14px 16px 60px; max-width: 900px; margin: 0 auto; }
+.card { background: #111b21; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+.card h3 { margin: 0 0 10px; font-size: 15px; color: #53bdeb; }
+.stat { display: flex; flex-wrap: wrap; gap: 10px; }
+.stat div { flex: 1 1 120px; background: #202c33; border-radius: 8px; padding: 10px 12px; }
+.stat b { display: block; font-size: 20px; }
+.stat span { font-size: 12px; color: #8696a0; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid #222d34; vertical-align: top; word-break: break-word; }
+th { color: #8696a0; font-weight: 500; }
+input, select, textarea { background: #2a3942; border: 1px solid #36434a; color: #e9edef; border-radius: 6px; padding: 8px 10px; font-size: 14px; max-width: 100%; }
+button.act { background: #2a3942; color: #e9edef; border: 0; border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+button.act.red { background: #7f1d1d; }
+button.act.grn { background: #14532d; }
+button.act:disabled { opacity: .45; cursor: default; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+.muted { color: #8696a0; font-size: 12.5px; }
+.bubble { background: #202c33; border-radius: 8px; padding: 8px 10px; margin: 6px 0; }
+.bubble .meta { font-size: 11.5px; color: #8696a0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.bub-me { border-left: 3px solid #005c4b; }
+.bub-them { border-left: 3px solid #333; }
+.removed { background: #3b1d1d; border-left: 3px solid #7f1d1d; }
+#whoami { font-size: 12.5px; color: #8696a0; }
+#hub { display: none; }
+#hubtxt { padding: 40px 16px; text-align: center; color: #8696a0; }
+.dlg { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 50; padding: 18px; }
+.dlgbox { background: #111b21; border-radius: 12px; padding: 18px; width: min(520px, 95vw); max-height: 88vh; overflow-y: auto; }
+.dlgbox h3 { margin: 0 0 10px; }
+.dlgbox .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+.flagrow { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #222d34; }
+.flagrow:last-child { border-bottom: 0; }
+.flagrow .lb { font-size: 14px; }
+.flagrow .lb small { display: block; color: #8696a0; font-weight: 400; }
+canvas, video, img.mediapv { max-width: 100%; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>ChatNest Admin</h1>
+  <div class="sub">Administrator sign-in</div>
+  <button id="lbtn"><svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.6 30.2.5 24 .5 14.6.5 6.5 5.9 2.6 13.8l7.8 6.1C12.3 13.9 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.6 3-2.3 5.6-4.9 7.3l7.6 5.9c4.4-4.1 7.1-10.2 7.1-17.5z"/><path fill="#FBBC05" d="M10.4 28.1c-.5-1.5-.8-3-.8-4.6s.3-3.1.8-4.6l-7.8-6.1C1 16.1 0 19.9 0 23.5s1 7.4 2.6 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 46.5c6.2 0 11.5-2 15.4-5.5l-7.6-5.9c-2.1 1.4-4.8 2.3-7.8 2.3-6.4 0-11.7-4.3-13.6-10.1l-7.8 6.1C6.5 41.6 14.6 46.5 24 46.5z"/></svg><span>Continue with Google</span></button>
+  <div id="lerr"></div>
+</div>
+<div id="hub">
+  <header>
+    <h1>ChatNest Admin</h1>
+    <button id="btnRefresh" title="Refresh">↻</button>
+    <button id="btnLogout" title="Sign out">Sign out</button>
+  </header>
+  <nav>
+    <button data-sec="dash" class="on">Dashboard</button>
+    <button data-sec="users">Users</button>
+    <button data-sec="convs">Conversations</button>
+    <button data-sec="msgs">Messages</button>
+    <button data-sec="media">Storage</button>
+    <button data-sec="settings">Settings</button>
+    <button data-sec="audit">Audit log</button>
+  </nav>
+  <main>
+    <div id="hubtxt"></div>
+    <div id="sec-dash" class="sec"></div>
+    <div id="sec-users" class="sec" style="display:none"></div>
+    <div id="sec-convs" class="sec" style="display:none"></div>
+    <div id="sec-msgs" class="sec" style="display:none"></div>
+    <div id="sec-media" class="sec" style="display:none"></div>
+    <div id="sec-settings" class="sec" style="display:none"></div>
+    <div id="sec-audit" class="sec" style="display:none"></div>
+  </main>
+</div>
+
+<div class="dlg" id="reasonDlg"><div class="dlgbox">
+  <h3>Delete this message?</h3>
+  <div class="muted">This will remove the message and its associated stored media.</div>
+  <div style="margin-top:12px">
+    <select id="reasonSel" style="width:100%">
+      <option value="">— choose a reason —</option>
+      <option>Inappropriate content</option>
+      <option>Spam</option>
+      <option>Harassment</option>
+      <option>Unsafe content</option>
+      <option>Privacy concern</option>
+      <option>Copyright concern</option>
+      <option>Malicious content</option>
+      <option>Unwanted media</option>
+      <option>Storage cleanup</option>
+      <option>User request</option>
+      <option>Policy violation</option>
+      <option>Other</option>
+    </select>
+    <input id="reasonCustom" placeholder="Custom reason (optional)" style="width:100%;margin-top:8px">
+  </div>
+  <div class="actions">
+    <button class="act" id="reasonCancel">Cancel</button>
+    <button class="act red" id="reasonOk" disabled>Delete</button>
+  </div>
+</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+'use strict';
+var SB_URL = 'https://ltcwjfywpxoklllustzx.supabase.co';
+var SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0Y3dqZnl3cHhva2xsbHVzdHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTAwMjEsImV4cCI6MjEwNTkyNjAyMX0.4bl5sKnmdALi9pF4Dp6LJs1uCLPnoAImugkhlUmAlmg';
+var D = { myId: null, isAdmin: false, users: {}, convs: [], msgs: [], settings: {}, audit: [], stats: null, storageStats: null, chat: null, deleteQueue: null };
+function el(id) { return document.getElementById(id); }
+function client() {
+  if (window.__sbMock) return window.__sbMock;
+  if (!window.sb) { try { window.sb = window.supabase.createClient(SB_URL, SB_KEY); } catch (e) { return null; } }
+  return window.sb;
+}
+function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function (c) { return c === '&' ? '&' + 'amp;' : c === '<' ? '&' + 'lt;' : c === '>' ? '&' + 'gt;' : c === '"' ? '&' + 'quot;' : '&' + '#39;'; }); }
+function fmtT(iso) { try { return new Date(iso).toLocaleString(); } catch (e) { return String(iso || ''); } }
+function fmtMB(b) { if (!b) return '0 MB'; var u = ['B', 'KB', 'MB', 'GB']; var i = 0; while (b >= 1024 && i < 3) { b = b / 1024; i++; } return b.toFixed(1) + ' ' + u[i]; }
+
+var FLAGS = [
+  ['messaging', 'Messaging', 'Text messages'],
+  ['media_upload', 'Media uploads', 'Allow new photo/video/document/audio uploads'],
+  ['image_sharing', 'Image sharing', 'Photos'],
+  ['video_sharing', 'Video sharing', 'Videos'],
+  ['document_sharing', 'Document sharing', 'Files and documents'],
+  ['audio_sharing', 'Audio sharing', 'Voice messages and audio files'],
+  ['reactions', 'Reactions', 'Message reactions'],
+  ['profile_edit', 'Profile editing', 'Users editing their profile'],
+  ['username_changes', 'Username changes', 'Users changing their @username'],
+  ['notifications', 'Notifications', 'Push notifications'],
+  ['search', 'Search', 'Message and user search'],
+  ['group_features', 'Group features', 'Group-related features'],
+  ['audio_calls', 'Audio calls', 'One-to-one audio calls'],
+  ['video_calls', 'Video calls', 'One-to-one video calls'],
+  ['location_sharing', 'Location sharing', 'Current location messages'],
+  ['live_location', 'Live location', 'Continuous live location sharing'],
+  ['new_conversations', 'New conversations', 'Users starting new chats'],
+  ['registration', 'Registration', 'Allow new users to join ChatNest']
+];
+
+async function isAdminNow(c) {
+  try { var r = await c.rpc('am_i_admin'); return !!(r && r.data); } catch (e) { return false; }
+}
+
+async function begin(user) {
+  el('login').style.display = 'none';
+  el('hub').style.display = 'block';
+  el('whoami') && (el('whoami').textContent = user.email || '');
+  var c = client();
+  D.myId = user.id;
+  D.isAdmin = await isAdminNow(c);
+  if (!D.isAdmin) { el('hubtxt').textContent = 'Signed in as ' + (user.email || 'unknown') + ' — this account is not the admin. No admin data is available.'; el('hubtxt').style.display = 'block'; return; }
+  el('hubtxt').style.display = 'none';
+  await loadAll();
+}
+
+async function loadAll() {
+  var c = client(); if (!c || !D.isAdmin) return;
+  D.users = {}; D.convs = []; D.msgs = []; D.settings = {};
+  try {
+    var u = (await c.from('profiles').select('*').order('created_at', { ascending: true })).data || [];
+    u.forEach(function (p) { D.users[p.id] = p; });
+    D.convs = (await c.from('conversations').select('*').order('created_at', { ascending: true })).data || [];
+    D.msgs = (await c.from('messages').select('*').order('created_at', { ascending: false }).limit(1000)).data || [];
+    try {
+      var st = (await c.from('app_settings').select('key, value')).data || [];
+      st.forEach(function (r) { D.settings[r.key] = (r.value && r.value.enabled !== undefined) ? r.value.enabled : r.value; });
+    } catch (e) {}
+    try { D.stats = (await c.rpc('admin_stats')).data; } catch (e) { D.stats = null; }
+    try { D.storageStats = (await c.rpc('admin_storage_stats')).data; } catch (e) { D.storageStats = null; }
+    try { D.audit = (await c.rpc('admin_get_audit', { limit: 200 })).data || []; } catch (e) { D.audit = []; }
+  } catch (e) { console.warn('admin load error', e); }
+  renderAll();
+}
+
+function userName(id) { var p = D.users[id]; return p ? (p.name || p.username || p.gmail || id.slice(0, 8)) : (id || '?').slice(0, 8); }
+
+function renderAll() { renderDash(); renderUsers(); renderConvs(); renderMsgs(); renderMedia(); renderSettings(); renderAudit(); }
+
+function renderDash() {
+  var s = el('sec-dash');
+  var st = D.stats || {};
+  var ss = D.storageStats || {};
+  s.innerHTML = '<div class="stat">'
+    + '<div><b>' + Object.keys(D.users).length + '</b><span>Users</span></div>'
+    + '<div><b>' + D.convs.length + '</b><span>Conversations</span></div>'
+    + '<div><b>' + (st.messages != null ? st.messages : D.msgs.length) + '</b><span>Messages</span></div>'
+    + '<div><b>' + (st.banned != null ? st.banned : Object.values(D.users).filter(function (p) { return p.banned; }).length) + '</b><span>Banned users</span></div>'
+    + '<div><b>' + (ss.media_messages != null ? ss.media_messages : '-') + '</b><span>Media messages</span></div>'
+    + '<div><b>' + (ss.storage_bytes != null ? fmtMB(ss.storage_bytes) : '-') + '</b><span>Storage used</span></div>'
+    + '<div><b>' + (ss.calls != null ? ss.calls : '-') + '</b><span>Calls (metadata only)</span></div>'
+    + '<div><b>' + (ss.cleanup_pending != null ? ss.cleanup_pending : '-') + '</b><span>Cleanups pending</span></div>'
+    + '</div>'
+    + '<div class="card"><h3>Announcement</h3><div class="row"><input id="annInp" style="flex:1" placeholder="Broadcast an announcement to all users…" value="' + esc((D.settings.announcement && D.settings.announcement.text) || '') + '"><button class="act grn" id="annSet">Send</button><button class="act red" id="annClear">Clear</button></div></div>';
+  el('annSet').onclick = function () { setSetting('announcement', { text: el('annInp').value }); };
+  el('annClear').onclick = function () { setSetting('announcement', { text: '' }); };
+}
+
+function renderUsers() {
+  var s = el('sec-users');
+  var rows = Object.values(D.users).sort(function (a, b) { return String(b.created_at || '').localeCompare(String(a.created_at || '')); });
+  s.innerHTML = '<div class="card"><input id="userSearch" placeholder="Search by name, @username or gmail…" style="width:100%"></div><div class="card"><table id="userTable"><tr><th>User</th><th>Status</th><th>Last seen</th><th></th></tr>'
+    + rows.map(function (p) {
+      return '<tr data-uid="' + esc(p.id) + '"><td><b>' + esc(p.name || '(no name)') + '</b> ' + (p.username ? '<span class="muted">@' + esc(p.username) + '</span>' : '') + '<br><span class="muted">' + esc(p.gmail || '') + '</span></td>'
+        + '<td>' + (p.banned ? '<b style="color:#f66">BANNED</b>' : 'Active') + '</td>'
+        + '<td class="muted">' + fmtT(p.last_seen_at) + '</td>'
+        + '<td style="white-space:nowrap"><button class="act" data-open="' + esc(p.id) + '">View</button> '
+        + (p.banned ? '<button class="act grn" data-unban="' + esc(p.id) + '">Unban</button>' : '<button class="act red" data-ban="' + esc(p.id) + '">Ban</button>') + '</td></tr>';
+    }).join('') + '</table></div>';
+  el('userSearch').oninput = function () {
+    var q = this.value.toLowerCase();
+    var tb = el('userTable');
+    tb.querySelectorAll('tr[data-uid]').forEach(function (tr) {
+      tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  };
+  s.querySelectorAll('[data-ban]').forEach(function (b) { b.onclick = function () { banFlow(b.getAttribute('data-ban'), true); }; });
+  s.querySelectorAll('[data-unban]').forEach(function (b) { b.onclick = function () { banFlow(b.getAttribute('data-unban'), false); }; });
+  s.querySelectorAll('[data-open]').forEach(function (b) { b.onclick = function () { userDlg(b.getAttribute('data-open')); }; });
+}
+
+function renderConvs() {
+  var s = el('sec-convs');
+  s.innerHTML = D.convs.map(function (cv) {
+    return '<div class="card"><div class="row"><b>' + esc(userName(cv.user_a)) + ' ↔ ' + esc(userName(cv.user_b)) + '</b>'
+      + '<span class="muted">' + fmtT(cv.created_at) + '</span>'
+      + '<span style="flex:1"></span><button class="act" data-chat="' + esc(cv.id) + '">Open conversation</button></div></div>';
+  }).join('') || '<div class="card">No conversations yet.</div>';
+  s.querySelectorAll('[data-chat]').forEach(function (b) { b.onclick = function () { openChat(b.getAttribute('data-chat')); }; });
+}
+
+function msgBubble(m) {
+  var me = m.sender === D.myId;
+  var body;
+  var k = (m.kind || 'text').toLowerCase();
+  var meta = {};
+  try { if (k === 'call' || k === 'location') meta = JSON.parse(m.content || '{}') || {}; } catch (e) {}
+  if (m.admin_removed) {
+    body = '⚠️ ' + esc(m.content || 'This message was removed by an administrator.') + (m.admin_reason ? ' <span class="muted">(reason logged)</span>' : '');
+  } else if (k === 'location') {
+    body = '📍 ' + (meta.t === 'live' ? 'Live location' : 'Current location') + ' <span class="muted">' + (typeof meta.lat === 'number' ? (meta.lat.toFixed(5) + ', ' + meta.lng.toFixed(5)) : '') + '</span>';
+  } else if (k === 'call') {
+    body = (meta.v ? '📹 Video call' : '📞 Audio call') + (meta.s === 'missed' ? ' — Missed call' : meta.s === 'declined' ? ' — Declined' : (meta.d ? ' · ' + Math.floor(meta.d / 60) + ':' + String(Math.round(meta.d % 60)).padStart(2, '0') : ''));
+  } else if (m.media) {
+    body = '📎 ' + esc(k) + ' <span class="muted">' + esc(m.media) + '</span>';
+  } else {
+    body = esc(m.content || '');
+  }
+  return '<div class="bubble ' + (m.admin_removed ? 'removed' : me ? 'bub-me' : 'bub-them') + '"><div>' + body + '</div><div class="meta"><span>' + esc(userName(m.sender)) + '</span><span>' + fmtT(m.created_at) + '</span>'
+    + (m.admin_removed ? '' : ' <button class="act red" data-del="' + esc(m.id) + '">Delete</button>') + '</div></div>';
+}
+
+function openChat(convId) {
+  var cv = D.convs.find(function (x) { return x.id === convId; }); if (!cv) return;
+  D.chat = convId;
+  var list = D.msgs.filter(function (m) { return m.conversation_id === convId; }).sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
+  var s = el('sec-convs');
+  s.innerHTML = '<div class="row"><button class="act" id="backConvs">← All conversations</button><b>' + esc(userName(cv.user_a)) + ' ↔ ' + esc(userName(cv.user_b)) + '</b><span class="muted">' + list.length + ' messages</span></div>'
+    + list.map(msgBubble).join('') || '<div class="card">No messages in this conversation.</div>';
+  el('backConvs').onclick = function () { D.chat = null; renderConvs(); };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function renderMsgs() {
+  if (D.chat) return openChat(D.chat);
+  var s = el('sec-msgs');
+  s.innerHTML = '<div class="card"><input id="msgSearch" placeholder="Search all messages…" style="width:100%"></div>'
+    + '<div id="msgList">' + D.msgs.slice(0, 100).map(msgBubble).join('') + '</div>';
+  el('msgSearch').oninput = function () {
+    var q = this.value.toLowerCase();
+    el('msgList').querySelectorAll('.bubble').forEach(function (b, i) {
+      b.style.display = !q || b.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function askDelete(msgId) {
+  D.deleteQueue = msgId;
+  el('reasonSel').value = '';
+  el('reasonCustom').value = '';
+  el('reasonOk').disabled = true;
+  el('reasonDlg').style.display = 'flex';
+}
+el('reasonSel').onchange = function () { el('reasonOk').disabled = !el('reasonSel').value && !el('reasonCustom').value; };
+el('reasonCustom').oninput = function () { el('reasonOk').disabled = !el('reasonSel').value && !el('reasonCustom').value; };
+el('reasonCancel').onclick = function () { el('reasonDlg').style.display = 'none'; D.deleteQueue = null; };
+el('reasonOk').onclick = async function () {
+  var id = D.deleteQueue; if (!id) return;
+  var reason = el('reasonCustom').value.trim() || el('reasonSel').value || 'Policy violation';
+  el('reasonDlg').style.display = 'none'; D.deleteQueue = null;
+  var m0 = D.msgs.find(function (x) { return x.id === id; });
+  var hadMedia = !!(m0 && m0.media) || !!(m0 && ['image', 'video', 'voice', 'audio', 'file', 'document'].indexOf(String(m0.kind || '').toLowerCase()) >= 0);
+  try {
+    var r = await client().rpc('admin_delete_message', { p_msg_id: id, p_reason: reason });
+    if (r && r.error) { alert('Delete failed: ' + r.error.message); }
+    else {
+      var m = D.msgs.find(function (x) { return x.id === id; });
+      if (m) { m.admin_removed = true; m.content = hadMedia ? 'This media was removed by an administrator.' : 'This message was removed by an administrator.'; m.media = ''; }
+      renderAll();
+      alert('Message deleted (database record + its storage object).');
+    }
+  } catch (e) { alert('Delete failed: ' + e.message); }
+};
+
+function renderMedia() {
+  var s = el('sec-media');
+  var ss = D.storageStats || {};
+  var mediaMsgs = D.msgs.filter(function (m) { return m.media; });
+  s.innerHTML = '<div class="card"><h3>Storage overview</h3><div class="stat">'
+    + '<div><b>' + (ss.storage_bytes != null ? fmtMB(ss.storage_bytes) : '-') + '</b><span>Storage used</span></div>'
+    + '<div><b>' + (ss.media_messages != null ? ss.media_messages : mediaMsgs.length) + '</b><span>Stored media</span></div>'
+    + '<div><b>' + (ss.images != null ? ss.images : '-') + '</b><span>Images</span></div>'
+    + '<div><b>' + (ss.videos != null ? ss.videos : '-') + '</b><span>Videos</span></div>'
+    + '<div><b>' + (ss.documents != null ? ss.documents : '-') + '</b><span>Documents</span></div>'
+    + '<div><b>' + (ss.audios != null ? ss.audios : '-') + '</b><span>Audio files</span></div>'
+    + '<div><b>' + (ss.orphaned_objects != null ? ss.orphaned_objects : '-') + '</b><span>Orphaned files</span></div>'
+    + '<div><b>' + (ss.cleanup_pending != null ? ss.cleanup_pending : '-') + '</b><span>Cleanup failures / pending</span></div>'
+    + '</div>'
+    + '<div class="row" style="margin-top:12px"><button class="act" id="btnStorRefresh">Refresh</button><button class="act grn" id="btnCleanup">Cleanup Now</button><span class="muted">Cleanup deletes expired media, retries failed storage deletions and removes orphaned files — server-side.</span></div></div>'
+    + '<div class="card"><h3>Media in messages</h3>'
+    + (mediaMsgs.slice(0, 60).map(function (m) {
+      return '<div class="bubble"><b>' + esc(m.kind) + '</b> <span class="muted">' + esc(m.media) + '</span><div class="meta"><span>' + esc(userName(m.sender)) + '</span><span>' + fmtT(m.created_at) + '</span>'
+        + (m.admin_removed ? '<span class="muted">already removed</span>' : ' <button class="act red" data-del="' + esc(m.id) + '">Delete media</button>') + '</div></div>';
+    }).join('') || '<div class="muted">No stored media in recent messages.</div>')
+    + '</div>';
+  el('btnStorRefresh').onclick = function () { loadAll(); };
+  el('btnCleanup').onclick = async function () {
+    if (!confirm('Run storage cleanup now?\n\nThis deletes expired media (per the retention setting), retries pending storage deletions and removes orphaned files. Database record + Storage object are always cleaned together.')) return;
+    try {
+      var r = await client().rpc('admin_cleanup_media');
+      var d = (r && r.data) || {};
+      alert('Cleanup finished.\n\nRetention deletions: ' + (d.retention_deleted || 0) + '\nRetried: ' + (d.retried || 0) + '\nFailed: ' + (d.failed || 0) + '\nOrphans removed: ' + (d.orphans_deleted || 0));
+      loadAll();
+    } catch (e) { alert('Cleanup failed: ' + e.message); }
+  };
+  s.querySelectorAll('[data-del]').forEach(function (b) { b.onclick = function () { askDelete(b.getAttribute('data-del')); }; });
+}
+
+function renderSettings() {
+  var s = el('sec-settings');
+  var ret = D.settings.media_retention;
+  var retDays = (ret && ret.days) || 0;
+  var lim = D.settings.storage_limit_mb;
+  var limMB = (lim && lim.mb) || 250;
+  s.innerHTML = '<div class="card"><h3>Feature Controls</h3><div id="flagRows">'
+    + FLAGS.map(function (f) {
+      var on = D.settings[f[0]] !== undefined ? D.settings[f[0]] : true;
+      return '<div class="flagrow"><div class="lb">' + esc(f[1]) + '<small>' + esc(f[2]) + '</small></div>'
+        + '<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-flag="' + esc(f[0]) + '"' + (on ? ' checked' : '') + '> <span>ON / OFF</span></label></div>';
+    }).join('')
+    + '</div><div class="muted" style="margin-top:8px">Changes reach every open ChatNest screen in seconds and are also enforced by the database.</div></div>'
+    + '<div class="card"><h3>Maintenance mode</h3><div class="row"><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-flag="maintenance"' + (D.settings.maintenance ? ' checked' : '') + '> <span>Turn maintenance mode ON (users see the maintenance screen; admins are exempt)</span></label></div></div>'
+    + '<div class="card"><h3>Media retention</h3><div class="row"><select id="retSel">'
+    + [[0, 'Never automatically delete'], [1, '1 day'], [3, '3 days'], [7, '7 days'], [15, '15 days'], [30, '30 days'], [60, '60 days']].map(function (o) {
+      return '<option value="' + o[0] + '"' + (retDays === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+    }).join('') + '</select><span class="muted">Stored media older than this is cleaned server-side; the chat shows a removal placeholder. Text messages are never touched.</span></div></div>'
+    + '<div class="card"><h3>Storage policy</h3><div class="row"><input id="limInp" type="number" min="1" style="width:110px" value="' + limMB + '"> <span>MB — maximum total media storage target</span><button class="act grn" id="limSet">Save</button></div><div class="muted">This is ChatNest\'s own application-level policy. It does not change your actual Supabase plan quota. When the limit is reached, new uploads are politely refused.</div></div>';
+  s.querySelectorAll('#flagRows [data-flag]').forEach(function (t) {
+    t.onchange = function () { setSetting(t.getAttribute('data-flag'), { enabled: t.checked }); };
+  });
+  var mx = s.querySelector('[data-flag=maintenance]');
+  mx.onchange = function () { setSetting('maintenance', { enabled: mx.checked }); };
+  el('retSel').onchange = function () { setSetting('media_retention', { days: parseInt(el('retSel').value, 10) || 0 }); };
+  el('limSet').onclick = function () { setSetting('storage_limit_mb', { mb: Math.max(1, parseInt(el('limInp').value, 10) || 250) }); };
+}
+
+function renderAudit() {
+  var s = el('sec-audit');
+  s.innerHTML = D.audit.length
+    ? '<div class="card"><table><tr><th>When</th><th>Action</th><th>Target</th><th>Details</th></tr>'
+      + D.audit.map(function (a) { return '<tr><td class="muted">' + fmtT(a.created_at) + '</td><td><b>' + esc(a.action) + '</b></td><td>' + esc(a.target) + '</td><td class="muted">' + esc(a.meta ? JSON.stringify(a.meta) : '') + '</td></tr>'; }).join('') + '</table></div>'
+    : '<div class="card">No admin actions recorded yet.</div>';
+}
+
+async function setSetting(key, value) {
+  try {
+    var r = await client().rpc('admin_set_setting', { p_key: key, p_value: value });
+    if (r && r.error) alert('Could not save: ' + r.error.message);
+    D.settings[key] = (value && value.enabled !== undefined) ? value.enabled : value;
+    if (key === 'announcement') { D.settings[key] = value.text || ''; toastAdmin(value.text ? 'Announcement sent' : 'Announcement cleared'); renderDash(); return; }
+    toastAdmin(key + ' saved');
+    renderSettings();
+  } catch (e) { alert('Could not save: ' + e.message); }
+}
+function toastAdmin(t) { try { var d = document.createElement('div'); d.textContent = t; d.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#14532d;color:#fff;padding:10px 18px;border-radius:8px;z-index:99'; document.body.appendChild(d); setTimeout(function () { d.remove(); }, 2200); } catch (e) {} }
+
+async function banFlow(uid, toBan) {
+  var p = D.users[uid]; if (!p) return;
+  var reason = '';
+  if (toBan) {
+    reason = prompt('Ban ' + (p.name || p.gmail) + '?\nReason shown to the user (optional):') || '';
+    if (!confirm('Really ban ' + (p.name || p.gmail) + '?')) return;
+  }
+  try {
+    var r = await client().from('profiles').update({ banned: toBan, ban_reason: toBan ? (reason || '') : '' }).eq('id', uid);
+    if (r && r.error) { alert('Failed: ' + r.error.message); return; }
+    p.banned = toBan; p.ban_reason = toBan ? reason : '';
+    toastAdmin(toBan ? 'User banned (enforced server-side)' : 'User unbanned');
+    loadAll();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function userDlg(uid) {
+  var p = D.users[uid]; if (!p) return;
+  var h = '<div class="dlgbox"><h3>' + esc(p.name || '(no name)') + '</h3>'
+    + '<div class="muted">' + esc(p.gmail || '') + (p.username ? ' · @' + esc(p.username) : '') + '</div>'
+    + '<table><tr><th>Status</th><td>' + (p.banned ? 'BANNED' + (p.ban_reason ? ' — ' + esc(p.ban_reason) : '') : 'Active') + '</td></tr>'
+    + '<tr><th>Created</th><td>' + fmtT(p.created_at) + '</td></tr>'
+    + '<tr><th>Last seen</th><td>' + fmtT(p.last_seen_at) + '</td></tr>'
+    + '<tr><th>Terms accepted</th><td>' + (p.terms_agreed_at ? fmtT(p.terms_agreed_at) : 'Not yet') + '</td></tr>'
+    + '<tr><th>Bio</th><td>' + esc(p.bio || '') + '</td></tr></table>'
+    + '<div class="actions"><button class="act" data-close="1">Close</button></div></div>';
+  var d = document.createElement('div'); d.className = 'dlg'; d.innerHTML = h;
+  document.body.appendChild(d); d.style.display = 'flex';
+  d.querySelector('[data-close]').onclick = function () { d.remove(); };
+}
+
+/* ---------- auth + boot ---------- */
+async function start() {
+  var c = client();
+  var lg = el('login');
+  if (!c) { lg.style.display = 'flex'; el('lerr').textContent = 'Could not load the Supabase library — check your connection.'; return; }
+  try {
+    c.auth.onAuthStateChange(function (ev, sess) {
+      try {
+        if (ev === 'SIGNED_OUT') resetLogin();
+        else if ((ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION') && sess && sess.user && !D.myId) begin(sess.user);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  var btn = el('lbtn');
+  btn.onclick = async function () {
+    var span = btn.querySelector('span'); if (span) span.textContent = 'Opening Google…';
+    el('lerr').textContent = '';
+    try {
+      var options = { redirectTo: location.href.split('#')[0].split('?')[0] };
+      var r = await c.auth.signInWithOAuth({ provider: 'google', options: options });
+      if (r && r.error) { el('lerr').textContent = r.error.message || 'Google sign-in failed'; }
+    } catch (e) {
+      el('lerr').textContent = (e && /google/i.test(String(e.message || e))) ? 'Google sign-in is not set up on the server yet (see the setup guide).' : (e.message || 'Google sign-in failed');
+    }
+    if (span) span.textContent = 'Continue with Google';
+  };
+  var sess = (await c.auth.getSession().catch(function () { return { data: null }; })).data;
+  if (sess && sess.session) { begin(sess.session.user); return; }
+  lg.style.display = 'flex';
+}
+function resetLogin() {
+  D = { myId: null, isAdmin: false, users: {}, convs: [], msgs: [], settings: {}, audit: [], stats: null, storageStats: null, chat: null, deleteQueue: null };
+  el('hub').style.display = 'none';
+  el('login').style.display = 'flex';
+}
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll('nav button').forEach(function (x) { x.classList.remove('on'); });
+    b.classList.add('on');
+    document.querySelectorAll('.sec').forEach(function (x) { x.style.display = 'none'; });
+    el('sec-' + b.getAttribute('data-sec')).style.display = 'block';
+  };
+});
+el('btnRefresh').onclick = function () { if (D.isAdmin) loadAll(); };
+el('btnLogout').onclick = async function () { try { await client().auth.signOut(); } catch (e) {} resetLogin(); };
+start();
+</script>
+</body>
+</html>
