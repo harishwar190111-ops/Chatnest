@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ChatNest Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  body { background: #0b141a; color: #d9e6e2; min-height: 100vh; }
+  button { cursor: pointer; }
+  /* ---------- login ---------- */
+  #login { position: fixed; inset: 0; z-index: 900; display: none; align-items: center; justify-content: center; background: #075e54; }
+  .lbox { background: #0b141a; border: 1px solid #1f3b34; border-radius: 14px; padding: 26px 24px; width: min(360px, 92vw); text-align: center; box-shadow: 0 18px 60px rgba(0,0,0,.5); }
+  .lbox h1 { color: #fff; font-size: 22px; margin-bottom: 4px; }
+  .lbox .sub { color: #7fa8a0; font-size: 13px; margin-bottom: 20px; }
+  .gbtn { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: #fff; color: #1b1b1b; font-size: 15px; font-weight: 600; }
+  .gbtn:disabled { opacity: .6; cursor: default; }
+  .lerr { color: #ff8f8f; font-size: 13px; min-height: 18px; margin-top: 12px; line-height: 1.4; }
+  /* ---------- chrome ---------- */
+  header { position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #075e54; color: #fff; }
+  #burger { background: none; border: 0; color: #fff; font-size: 20px; display: none; }
+  @media (max-width: 760px) { #burger { display: block; } #side { position: fixed; z-index: 800; left: -230px; transition: left .2s; height: 100vh; } #side.open { left: 0; } }
+  header h1 { font-size: 17px; }
+  header .sub { font-size: 12px; opacity: .85; }
+  #hubbar { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; display: inline-block; }
+  .dot.on { background: #37e29a; }
+  #sbOut { color: #9fd8cd; cursor: pointer; font-size: 13px; margin-left: 10px; text-decoration: none; }
+  .wrap { display: flex; min-height: calc(100vh - 54px); }
+  #side { width: 210px; background: #102822; padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .nv { text-align: left; background: none; border: 0; color: #9fc2b8; padding: 10px 12px; border-radius: 8px; font-size: 14px; }
+  .nv.act { background: #075e54; color: #fff; }
+  main { flex: 1; padding: 16px; min-width: 0; }
+  .view { display: none; }
+  .view.on { display: block; }
+  h2 { font-size: 18px; margin-bottom: 12px; color: #fff; }
+  .card { background: #102822; border: 1px solid #1f3b34; border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .stat { background: #0d211b; border: 1px solid #1f3b34; border-radius: 10px; padding: 14px; }
+  .stat .n { font-size: 24px; color: #37e29a; font-weight: 700; }
+  .stat .l { font-size: 12px; color: #7fa8a0; margin-top: 2px; }
+  input, textarea, select { background: #0d211b; border: 1px solid #1f3b34; color: #d9e6e2; border-radius: 8px; padding: 9px 11px; font-size: 14px; width: 100%; }
+  input:focus, textarea:focus { outline: 1px solid #075e54; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #7fa8a0; font-size: 11px; text-transform: uppercase; padding: 8px 6px; border-bottom: 1px solid #1f3b34; }
+  td { padding: 8px 6px; border-bottom: 1px solid #14261f; vertical-align: top; }
+  tr:hover td { background: #0e241e; }
+  .btn { background: #075e54; color: #fff; border: 0; border-radius: 7px; padding: 7px 12px; font-size: 13px; }
+  .btn.warn { background: #8a2f36; }
+  .btn.ghost { background: transparent; border: 1px solid #2b4a42; }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; }
+  .pill.ban { background: #5a2328; color: #ff9c9c; }
+  .pill.ok { background: #16442f; color: #6fe0a8; }
+  .muted { color: #7fa8a0; }
+  .small { font-size: 12px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .toggleRow { display: flex; align-items: center; justify-content: space-between; padding: 11px 4px; border-bottom: 1px solid #14261f; gap: 12px; }
+  .toggleRow:last-child { border-bottom: 0; }
+  .toggleRow .t { font-size: 14px; }
+  .toggleRow .d { font-size: 12px; color: #7fa8a0; margin-top: 2px; }
+  .sw { position: relative; width: 44px; height: 24px; flex: 0 0 auto; }
+  .sw input { opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; position: relative; z-index: 2; }
+  .sw .tr { position: absolute; inset: 0; background: #263f38; border-radius: 20px; transition: background .15s; pointer-events: none; }
+  .sw .tr::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left .15s; }
+  .sw input:checked + .tr { background: #128c7e; }
+  .sw input:checked + .tr::after { left: 23px; }
+  .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: #102822; border: 1px solid #2b4a42; color: #d9e6e2; padding: 10px 16px; border-radius: 20px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  /* ---------- chat modal ---------- */
+  #chatModal { position: fixed; inset: 0; z-index: 600; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; }
+  #chatModal .mbox { background: #0b141a; border: 1px solid #1f3b34; border-radius: 12px; width: min(680px, 94vw); max-height: 84vh; display: flex; flex-direction: column; }
+  .mhead { padding: 12px 16px; border-bottom: 1px solid #1f3b34; display: flex; justify-content: space-between; align-items: center; }
+  .mbody { padding: 12px 16px; overflow-y: auto; }
+  .msgrow { display: flex; gap: 10px; padding: 7px 4px; border-bottom: 1px solid #14261f; align-items: flex-start; }
+  .msgrow .who { color: #37e29a; font-size: 12px; flex: 0 0 130px; word-break: break-all; }
+  .msgrow .txt { flex: 1; font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+  .msgrow .acts { flex: 0 0 auto; display: flex; gap: 6px; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="lbox">
+    <h1>ChatNest Admin</h1>
+    <div class="sub">Sign in with the admin Google account</div>
+    <button id="lbtn" class="gbtn" type="button">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.2-.1-2.3-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.3 4.3-4.1 5.7l6.2 5.2C36.9 39.2 44 34 44 24c0-1.2-.1-2.3-.4-3.5z"/></svg>
+      <span>Continue with Google</span>
+    </button>
+    <div class="lerr" id="lerr"></div>
+  </div>
+</div>
+
+<header>
+  <button id="burger">☰</button>
+  <div><h1>ChatNest Admin</h1><div class="sub" id="whoami">not signed in</div></div>
+  <div id="hubbar"><span class="dot" id="dot"></span><span id="hubtxt">connecting&hellip;</span><a href="#" id="sbOut">Sign out</a></div>
+</header>
+
+<div class="wrap">
+  <nav id="side">
+    <button class="nv act" data-v="dash">Dashboard</button>
+    <button class="nv" data-v="users">Users</button>
+    <button class="nv" data-v="convs">Conversations</button>
+    <button class="nv" data-v="msgs">Messages</button>
+    <button class="nv" data-v="media">Media</button>
+    <button class="nv" data-v="settings">Settings</button>
+    <button class="nv" data-v="audit">Audit log</button>
+  </nav>
+  <main>
+
+    <section class="view on" id="v-dash">
+      <h2>Dashboard</h2>
+      <div class="grid" id="statGrid"></div>
+      <div class="card" style="margin-top:14px">
+        <b class="small">RECENT ACTIVITY</b>
+        <div id="recent" class="small" style="margin-top:8px"></div>
+      </div>
+    </section>
+
+    <section class="view" id="v-users">
+      <h2>Users</h2>
+      <div class="card">
+        <input id="uSearch" placeholder="Search by Gmail, name or username&hellip;">
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <table id="userTable">
+          <thead><tr><th>User</th><th>Email</th><th>Username</th><th>Joined</th><th>Last seen</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card" id="editCard" style="display:none">
+        <b class="small">SAFE PROFILE EDIT</b>
+        <div class="row" style="margin-top:10px">
+          <div style="flex:1"><label class="small muted">Display name</label><input id="eName"></div>
+          <div style="flex:1"><label class="small muted">Username</label><input id="eUser"></div>
+          <div style="flex:2"><label class="small muted">Bio</label><input id="eBio"></div>
+          <button class="btn" id="eSave" style="align-self:flex-end">Save</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="v-convs">
+      <h2>Conversations</h2>
+      <div class="card"><input id="cSearch" placeholder="Search by participant Gmail&hellip;"></div>
+      <div class="card" style="overflow-x:auto">
+        <table id="convTable">
+          <thead><tr><th>Participants</th><th>Started</th><th>Messages</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="v-msgs">
+      <h2>Messages</h2>
+      <div class="card"><input id="mSearch" placeholder="Search message text or Gmail&hellip;"></div>
+      <div class="card" style="overflow-x:auto">
+        <table id="msgTable">
+          <thead><tr><th>When</th><th>From</th><th>Conversation</th><th>Content</th><th>Kind</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="v-media">
+      <h2>Media</h2>
+      <div class="card"><div class="small muted">All photos, voice notes and files sent in ChatNest. Deleting a media message removes its row and its stored file (where the database authorizes it).</div></div>
+      <div class="card" style="overflow-x:auto">
+        <table id="mediaTable">
+          <thead><tr><th>When</th><th>From</th><th>Kind</th><th>Storage path</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="view" id="v-settings">
+      <h2>Settings</h2>
+      <div class="card">
+        <b class="small">FEATURES & APP CONTROL</b>
+        <div class="small muted" style="margin:4px 0 10px">Changes are stored in the database, audited, and reach every open ChatNest screen instantly.</div>
+        <div id="flagRows"></div>
+      </div>
+      <div class="card">
+        <b class="small">ANNOUNCEMENT</b>
+        <div class="small muted" style="margin:4px 0 10px">Shown as a banner at the top of every user's ChatNest. Empty = no banner.</div>
+        <textarea id="annText" rows="2" placeholder="e.g. Welcome to ChatNest!"></textarea>
+        <button class="btn" id="annSave" style="margin-top:10px">Save announcement</button>
+      </div>
+    </section>
+
+    <section class="view" id="v-audit">
+      <h2>Audit log</h2>
+      <div class="card" style="overflow-x:auto">
+        <table id="auditTable">
+          <thead><tr><th>When</th><th>Admin</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div id="chatModal">
+  <div class="mbox">
+    <div class="mhead"><b id="cmTitle" style="font-size:15px">Conversation</b><button class="btn ghost" id="cmClose">Close</button></div>
+    <div class="mbody" id="cmBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= configuration ================= */
+var SUPABASE_URL = 'https://ltcwjfywpxoklllustzx.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0Y3dqZnl3cHhva2xsbHVzdHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTAwMjEsImV4cCI6MjEwNTkyNjAyMX0.4bl5sKnmdALi9pF4Dp6LJs1uCLPnoAImugkhlUmAlmg';
+
+function client() {
+  if (window.__sbMock) return window.__sbMock;
+  if (SUPABASE_URL.indexOf('PASTE_YOUR') === 0) return null;
+  if (!window.__c) window.__c = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return window.__c;
+}
+var D = { users: {}, convs: {}, msgs: [], settings: {}, myId: null, isAdmin: false };
+function esc(x) { var d = document.createElement('div'); d.textContent = x == null ? '' : String(x); return d.innerHTML; }
+function fmtTime(ts) { var d = new Date(ts); return d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function el(id) { return document.getElementById(id); }
+function toast(t) { var x = el('toast'); x.textContent = t; x.classList.add('show'); setTimeout(function () { x.classList.remove('show'); }, 2600); }
+
+/* ================= data loading ================= */
+async function loadAll() {
+  var c = client(); if (!c) return;
+  try {
+    var u = (await c.from('profiles').select('*').order('created_at', { ascending: true })).data || [];
+    u.forEach(function (p) { D.users[p.id] = p; });
+    var cv = (await c.from('conversations').select('*')).data || [];
+    cv.forEach(function (x) { D.convs[x.id] = x; });
+    var ms = (await c.from('messages').select('*').order('created_at', { ascending: false }).limit(1000)).data || [];
+    D.msgs = ms.reverse();
+    try { D.stats = (await c.rpc('admin_stats')).data; } catch (e) { D.stats = null; }
+    try { var st = (await c.from('app_settings').select('key, value')).data || []; st.forEach(function (r) { D.settings[r.key] = r.value; }); } catch (e) {}
+  } catch (e) {}
+  render();
+}
+function userBy(idOrMail) {
+  var ks = Object.keys(D.users);
+  for (var i = 0; i < ks.length; i++) { var p = D.users[ks[i]]; if (p.id === idOrMail || p.gmail === idOrMail) return p; }
+  return null;
+}
+function partnerMails(conv) {
+  var a = D.users[conv.user_a], b = D.users[conv.user_b];
+  return ((a && a.gmail) || conv.user_a) + ' &harr; ' + ((b && b.gmail) || conv.user_b);
+}
+
+/* ================= rendering ================= */
+var FLAGS = [
+  ['messaging', 'Messaging', 'Turn off to disable sending new messages'],
+  ['media', 'Media & attachments', 'Photos, voice notes and files in chats'],
+  ['reactions', 'Reactions', 'Emoji reactions on messages'],
+  ['profile_edit', 'Profile editing', 'Users changing their name, bio and photo'],
+  ['username_changes', 'Username changes', 'Users changing their @username'],
+  ['notifications', 'Notifications', 'Push notification subscriptions'],
+  ['search', 'Search', 'Finding people and searching messages'],
+  ['group_features', 'Group features', 'Anything beyond one-to-one chats'],
+  ['registration', 'Allow new users', 'OFF = the database rejects brand-new profiles'],
+  ['maintenance', 'Maintenance mode', 'Users see a maintenance screen; the database also blocks new messages']
+];
+function render() {
+  /* dashboard */
+  var users = Object.keys(D.users).map(function (k) { return D.users[k]; });
+  var day = Date.now() - 86400000;
+  var active = users.filter(function (p) { return p.last_seen_at && new Date(p.last_seen_at).getTime() > day; }).length;
+  var convs = Object.keys(D.convs).length;
+  var mediaCount = D.msgs.filter(function (m) { return m.media; }).length;
+  var grid = [
+    [users.length, 'total users'],
+    [active, 'active last 24h'],
+    [convs, 'conversations'],
+    [D.msgs.length, 'messages (latest 1000)'],
+    [mediaCount, 'media messages'],
+    [(D.stats && D.stats.storage_mb) || '—', 'storage (MB)']
+  ];
+  el('statGrid').innerHTML = grid.map(function (g) { return '<div class="stat"><div class="n">' + esc(g[0]) + '</div><div class="l">' + g[1] + '</div></div>'; }).join('');
+  var rec = D.msgs.slice(-8).reverse().map(function (m) {
+    var p = D.users[m.sender];
+    return '<div>' + esc(fmtTime(m.created_at)) + ' &mdash; <b>' + esc((p && (p.username || p.gmail)) || m.sender) + '</b>: ' + esc(String(m.content || m.kind || '').slice(0, 60)) + '</div>';
+  }).join('') || '<span class="muted">no recent activity</span>';
+  el('recent').innerHTML = rec;
+
+  /* users */
+  var q = (el('uSearch').value || '').toLowerCase();
+  var rows = users.filter(function (p) { return !q || (p.gmail || '').indexOf(q) >= 0 || (p.name || '').toLowerCase().indexOf(q) >= 0 || (p.username || '').toLowerCase().indexOf(q) >= 0; })
+    .sort(function (a, b) { return new Date(b.created_at || 0) - new Date(a.created_at || 0); });
+  el('userTable').querySelector('tbody').innerHTML = rows.map(function (p) {
+    return '<tr>' +
+      '<td><b>' + esc(p.name || '') + '</b></td>' +
+      '<td class="small">' + esc(p.gmail || '') + '</td>' +
+      '<td class="small">' + esc(p.username || '—') + '</td>' +
+      '<td class="small">' + esc(p.created_at ? fmtTime(p.created_at) : '—') + '</td>' +
+      '<td class="small">' + esc(p.last_seen_at ? fmtTime(p.last_seen_at) : 'never') + '</td>' +
+      '<td>' + (p.banned ? '<span class="pill ban">banned</span>' : '<span class="pill ok">active</span>') + '</td>' +
+      '<td class="row">' +
+        '<button class="btn ' + (p.banned ? '' : 'warn') + '" data-ban="' + esc(p.id) + '" data-to="' + (p.banned ? 'false' : 'true') + '">' + (p.banned ? 'Unban' : 'Ban') + '</button> ' +
+        '<button class="btn ghost" data-edit="' + esc(p.id) + '">Edit</button>' +
+      '</td></tr>';
+  }).join('');
+  el('userTable').querySelectorAll('[data-ban]').forEach(function (b) { b.onclick = function () { setUserBanned(b.dataset.ban, b.dataset.to === 'true'); }; });
+  el('userTable').querySelectorAll('[data-edit]').forEach(function (b) { b.onclick = function () { openEdit(b.dataset.edit); }; });
+
+  /* conversations */
+  var cq = (el('cSearch').value || '').toLowerCase();
+  var convList = Object.keys(D.convs).map(function (k) { return D.convs[k]; })
+    .filter(function (x) { return !cq || partnerMails(x).toLowerCase().indexOf(cq) >= 0; });
+  el('convTable').querySelector('tbody').innerHTML = convList.map(function (x) {
+    var n = D.msgs.filter(function (m) { return m.conversation_id === x.id; }).length;
+    return '<tr><td>' + esc(partnerMails(x)) + '</td><td class="small">' + esc(x.created_at ? fmtTime(x.created_at) : '—') + '</td><td>' + n + '</td>' +
+      '<td><button class="btn ghost" data-conv="' + esc(x.id) + '">Inspect</button></td></tr>';
+  }).join('');
+  el('convTable').querySelectorAll('[data-conv]').forEach(function (b) { b.onclick = function () { openConv(b.dataset.conv); }; });
+
+  /* messages */
+  var mq = (el('mSearch').value || '').toLowerCase();
+  var ml = D.msgs.slice().reverse().filter(function (m) {
+    if (!mq) return true;
+    var p = D.users[m.sender];
+    return (m.content || '').toLowerCase().indexOf(mq) >= 0 || ((p && p.gmail) || '').indexOf(mq) >= 0;
+  }).slice(0, 300);
+  el('msgTable').querySelector('tbody').innerHTML = ml.map(function (m) {
+    var p = D.users[m.sender];
+    return '<tr><td class="small">' + esc(fmtTime(m.created_at)) + '</td><td class="small">' + esc((p && p.gmail) || m.sender) + '</td>' +
+      '<td class="small">' + esc(partnerMails(D.convs[m.conversation_id] || { user_a: '?', user_b: '?' })) + '</td>' +
+      '<td>' + esc(String(m.content || '').slice(0, 80)) + '</td><td class="small">' + esc(m.kind || 'text') + '</td>' +
+      '<td>' + (m.media ? '<button class="btn warn" data-mdel="' + esc(m.id) + '" data-mpath="' + esc(m.media) + '">Delete</button>' : (m.hidden ? '<span class="pill ban">hidden</span>' : '')) + '</td></tr>';
+  }).join('');
+  el('msgTable').querySelectorAll('[data-mdel]').forEach(function (b) { b.onclick = function () { deleteMessage(b.dataset.mdel, b.dataset.mpath); }; });
+
+  /* media */
+  var mediaList = D.msgs.filter(function (m) { return m.media; }).reverse();
+  el('mediaTable').querySelector('tbody').innerHTML = mediaList.map(function (m) {
+    var p = D.users[m.sender];
+    return '<tr><td class="small">' + esc(fmtTime(m.created_at)) + '</td><td class="small">' + esc((p && p.gmail) || m.sender) + '</td>' +
+      '<td class="small">' + esc(m.kind || 'file') + '</td><td class="small" style="word-break:break-all">' + esc(m.media) + '</td>' +
+      '<td><button class="btn warn" data-mdel="' + esc(m.id) + '" data-mpath="' + esc(m.media) + '">Delete</button></td></tr>';
+  }).join('');
+  el('mediaTable').querySelectorAll('[data-mdel]').forEach(function (b) { b.onclick = function () { deleteMessage(b.dataset.mdel, b.dataset.mpath); }; });
+
+  /* settings */
+  el('flagRows').innerHTML = FLAGS.map(function (f) {
+    var v = D.settings[f[0]];
+    var on = !(v && v.enabled === false);
+    return '<div class="toggleRow"><div><div class="t">' + f[1] + '</div><div class="d">' + f[2] + '</div></div>' +
+      '<label class="sw"><input type="checkbox" data-flag="' + f[0] + '"' + (on ? ' checked' : '') + '><span class="tr"></span></label></div>';
+  }).join('');
+  el('flagRows').querySelectorAll('[data-flag]').forEach(function (t) { t.onchange = function () { setFlag(t.dataset.flag, t.checked); }; });
+  if (!el('annText').__loaded) { el('annText').value = (D.settings.announcement && D.settings.announcement.text) || ''; el('annText').__loaded = true; }
+}
+function openEdit(id) {
+  var p = D.users[id]; if (!p) return;
+  el('editCard').style.display = '';
+  el('eName').value = p.name || ''; el('eUser').value = p.username || ''; el('eBio').value = p.bio || '';
+  el('eSave').onclick = async function () {
+    var c = client();
+    var r = await c.from('profiles').update({ name: el('eName').value.slice(0, 60), username: (el('eUser').value || '').replace(/[^a-zA-Z0-9._]/g, '').slice(0, 24), bio: el('eBio').value.slice(0, 140) }).eq('id', id);
+    if (r && r.error) { toast('Could not save: ' + r.error.message); return; }
+    try { await c.rpc('admin_audit', { p_action: 'user_edited', p_target: id, p_meta: { name: el('eName').value } }); } catch (e) {}
+    toast('Profile saved'); loadAll();
+  };
+}
+async function setUserBanned(id, to) {
+  var c = client();
+  var r = await c.from('profiles').update({ banned: to }).eq('id', id);
+  if (r && r.error) { toast('Could not ' + (to ? 'ban' : 'unban') + ': ' + r.error.message); return; }
+  toast(to ? 'User banned — enforcement is backend-side' : 'User unbanned');
+  loadAll();
+}
+async function deleteMessage(id, path) {
+  if (!confirm('Delete this message' + (path ? ' and its stored file' : '') + '?')) return;
+  var c = client();
+  var r = await c.from('messages').delete().eq('id', id);
+  if (r && r.error) { toast('Could not delete: ' + r.error.message); return; }
+  if (path) { try { await c.storage.from('media').remove([path]); } catch (e) {} }
+  toast('Deleted'); loadAll();
+}
+function openConv(id) {
+  var conv = D.convs[id]; if (!conv) return;
+  el('cmTitle').textContent = partnerMails(conv);
+  var ms = D.msgs.filter(function (m) { return m.conversation_id === id; });
+  el('cmBody').innerHTML = ms.map(function (m) {
+    var p = D.users[m.sender];
+    return '<div class="msgrow"><div class="who">' + esc((p && (p.username || p.gmail)) || m.sender) + '</div>' +
+      '<div class="txt">' + (m.media ? '[' + esc(m.kind || 'media') + '] ' : '') + esc(m.content || '') + '</div>' +
+      '<div class="acts"><span class="small muted">' + esc(fmtTime(m.created_at)) + '</span></div></div>';
+  }).join('') || '<span class="muted">no messages</span>';
+  el('chatModal').style.display = 'flex';
+}
+async function setFlag(key, on) {
+  var c = client();
+  var r = await c.rpc('admin_set_setting', { p_key: key, p_value: { enabled: !!on } });
+  if (r && r.error) { toast('Could not save: ' + r.error.message); render(); return; }
+  toast(key + ' = ' + (on ? 'ON' : 'OFF'));
+  loadAll();
+}
+async function loadAudit() {
+  var c = client();
+  var r = await c.rpc('admin_get_audit', { p_limit: 100 });
+  var rows = (r && r.data) || [];
+  el('auditTable').querySelector('tbody').innerHTML = rows.map(function (a) {
+    var p = D.users[a.admin_id];
+    return '<tr><td class="small">' + esc(fmtTime(a.created_at)) + '</td><td class="small">' + esc((p && p.gmail) || a.admin_id || '—') + '</td>' +
+      '<td>' + esc(a.action) + '</td><td class="small">' + esc(a.target || '') + '</td><td class="small" style="word-break:break-all">' + esc(JSON.stringify(a.meta || {})) + '</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="muted">no entries yet</span></td></tr>';
+}
+
+/* ================= navigation ================= */
+document.querySelectorAll('.nv').forEach(function (nv) {
+  nv.addEventListener('click', function () {
+    document.querySelectorAll('.nv').forEach(function (x) { x.classList.remove('act'); });
+    nv.classList.add('act');
+    ['dash', 'users', 'convs', 'msgs', 'media', 'settings', 'audit'].forEach(function (v) { el('v-' + v).classList.toggle('on', nv.dataset.v === v); });
+    if (nv.dataset.v === 'audit') loadAudit();
+    el('side').classList.remove('open');
+  });
+});
+['uSearch', 'cSearch', 'mSearch'].forEach(function (id) { el(id).addEventListener('input', render); });
+el('cmClose').addEventListener('click', function () { el('chatModal').style.display = 'none'; });
+el('chatModal').addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
+el('burger').addEventListener('click', function () { el('side').classList.toggle('open'); });
+el('annSave').addEventListener('click', async function () {
+  var c = client();
+  var r = await c.rpc('admin_set_setting', { p_key: 'announcement', p_value: { text: el('annText').value.slice(0, 200) } });
+  if (r && r.error) { toast('Could not save: ' + r.error.message); return; }
+  toast('Announcement saved — users see it immediately');
+});
+
+/* ================= auth (Google via Supabase) ================= */
+var ADMIN_resetLogin = null;
+async function start() {
+  var c = client();
+  var lg = el('login');
+  if (!c) { el('hubtxt').textContent = 'Setup needed: paste your Supabase keys in this file'; return; }
+  try {
+    c.auth.onAuthStateChange(function (ev, sess) {
+      try {
+        if (ev === 'SIGNED_OUT') { if (ADMIN_resetLogin) ADMIN_resetLogin(); }
+        else if ((ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION') && sess && sess.user && !D.myId) begin(sess.user);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  wireLogin(c, lg);
+  var sess = (await c.auth.getSession().catch(function () { return { data: null }; })).data;
+  if (sess && sess.session) { begin(sess.session.user); return; }
+  lg.style.display = 'flex';
+}
+function wireLogin(c, lg) {
+  var err = el('lerr'), btn = el('lbtn');
+  var busy = false;
+  btn.onclick = async function () {
+    if (busy) return;
+    busy = true; btn.disabled = true;
+    var span = btn.querySelector('span'); if (span) span.textContent = 'Opening Google…';
+    err.textContent = '';
+    try {
+      var options = {};
+      /* the OAuth round trip must land back on this exact admin page */
+      try { var rd = location.origin + location.pathname; if (/^https:/.test(rd)) options.redirectTo = rd; } catch (e2) {}
+      var r = await c.auth.signInWithOAuth({ provider: 'google', options: options });
+      if (r && r.error) {
+        var msg = String((r.error && (r.error.message || r.error.msg)) || r.error);
+        if (/cancel|denied|popup closed/i.test(msg)) err.textContent = 'Google sign-in was cancelled. You can try again.';
+        else if (/provider|not enabled|unsupported/i.test(msg)) err.textContent = 'Google sign-in is not set up on the server yet. See the setup guide.';
+        else err.textContent = 'Google sign-in failed: ' + msg;
+      }
+    } catch (e) {
+      err.textContent = 'Google sign-in did not complete. Check your internet and try again.';
+    }
+    if (span) span.textContent = 'Continue with Google';
+    btn.disabled = false; busy = false;
+  };
+  ADMIN_resetLogin = function () {
+    busy = false; btn.disabled = false;
+    lg.style.display = 'flex';
+    try { D.myId = null; } catch (e) {}
+    try { if (D.live) { c.removeChannel(D.live); D.live = null; } } catch (e) {}
+    try { if (D.tick) { clearInterval(D.tick); D.tick = null; } } catch (e) {}
+    try { el('whoami').textContent = 'not signed in'; } catch (e) {}
+    try { el('dot').className = 'dot'; el('hubtxt').textContent = 'signed out'; } catch (e) {}
+  };
+}
+async function begin(user) {
+  var c = client();
+  el('login').style.display = 'none';
+  D.myId = user.id;
+  el('whoami').textContent = 'signed in as ' + (user.email || '');
+  el('dot').className = 'dot on';
+  el('hubtxt').textContent = 'connected to the database';
+  await loadAll();
+  if (!Object.keys(D.users).length) el('hubtxt').textContent = 'no data visible — this Gmail is not the admin set up in the SQL';
+  D.tick = setInterval(loadAll, 8000);
+  try {
+    D.live = c.channel('admin-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, function () { loadAll(); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, function () { loadAll(); })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, function () { loadAll(); })
+      .subscribe();
+  } catch (e) {}
+}
+el('sbOut').addEventListener('click', function (e) {
+  e.preventDefault();
+  var c = client(); var done = false;
+  var fin = function () { if (done) return; done = true; try { location.reload(); } catch (e2) { if (ADMIN_resetLogin) ADMIN_resetLogin(); } };
+  try { if (c && c.auth && c.auth.signOut) { Promise.race([c.auth.signOut(), new Promise(function (r) { setTimeout(r, 3000); })]).then(fin, fin); } else fin(); } catch (e2) { fin(); }
+});
+start();
+</script>
+</body>
+</html>
