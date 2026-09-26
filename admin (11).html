@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ChatNest Admin</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; background: #0b141a; color: #e1e8eb; min-height: 100vh; }
+  a { color: #53bdeb; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: #14262f; border-bottom: 1px solid #233138; position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header .sub { font-size: 12px; color: #8ea3ab; }
+  #burger { background: none; border: none; color: #e1e8eb; font-size: 22px; cursor: pointer; }
+  .wrap { display: flex; }
+  nav { width: 220px; padding: 18px 10px; background: #101e26; min-height: calc(100vh - 59px); }
+  nav .nv { display: block; width: 100%; text-align: left; padding: 11px 14px; margin: 2px 0; background: none; border: none; border-radius: 8px; color: #b8c7cc; font-size: 14.5px; cursor: pointer; }
+  nav .nv.act { background: #2a3942; color: #fff; }
+  main { flex: 1; padding: 20px; max-width: 1150px; overflow-x: auto; }
+  h2 { font-size: 16px; margin-bottom: 6px; }
+  .hint { font-size: 12.5px; color: #8ea3ab; margin-bottom: 16px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px; }
+  .stat { background: #14262f; border-radius: 10px; padding: 14px; }
+  .stat .n { font-size: 24px; font-weight: 700; color: #53bdeb; }
+  .stat .l { font-size: 12px; color: #8ea3ab; margin-top: 4px; }
+  .pill { display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 99px; }
+  .pill.on { background: rgba(83, 189, 235, .15); color: #53bdeb; }
+  .pill.off { background: rgba(140, 150, 155, .15); color: #8ea3ab; }
+  .pill.ban { background: rgba(230, 100, 100, .15); color: #e06c6c; }
+  .tblwrap { overflow-x: auto; }
+  table.tbl { width: 100%; border-collapse: collapse; background: #14262f; border-radius: 10px; overflow: hidden; font-size: 13px; }
+  .tbl th { text-align: left; padding: 10px 12px; color: #8ea3ab; font-weight: 500; background: #1a2f3a; white-space: nowrap; }
+  .tbl td { padding: 9px 12px; border-top: 1px solid #1f323d; vertical-align: middle; white-space: nowrap; }
+  .tbl tr:hover td { background: #172b34; }
+  .mut { color: #8ea3ab; font-size: 12px; }
+  .av { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: #2a3942; color: #53bdeb; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; }
+  .empty { padding: 26px; text-align: center; color: #8ea3ab; font-size: 13.5px; background: #14262f; border-radius: 10px; }
+  .search { width: 100%; max-width: 380px; padding: 10px 14px; border-radius: 8px; border: 1px solid #233138; background: #0f1e26; color: #e1e8eb; font-size: 13.5px; margin-bottom: 14px; outline: none; }
+  button.b { border: none; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 12.5px; color: #fff; margin: 1px; }
+  .cmodal { position: fixed; inset: 0; background: rgba(0, 0, 0, .6); display: none; align-items: center; justify-content: center; z-index: 50; }
+  .cbox { background: #111f27; border-radius: 14px; width: min(560px, 94vw); max-height: 86vh; display: flex; flex-direction: column; }
+  .chead { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #233138; }
+  .cname { font-weight: 700; font-size: 15px; }
+  .csub { font-size: 11.5px; color: #8ea3ab; }
+  .cbody { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+  .bub { max-width: 76%; padding: 8px 11px; border-radius: 10px; font-size: 13.5px; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .bub.left { background: #1f3038; align-self: flex-start; }
+  .bub.right { background: #005c4b; align-self: flex-end; }
+  .bub img { max-width: 200px; border-radius: 8px; display: block; margin-top: 6px; }
+  .who2 { font-size: 10.5px; color: #53bdeb; margin-bottom: 3px; }
+  .bt { font-size: 10px; color: rgba(255,255,255,.5); text-align: right; margin-top: 3px; }
+  #login { position: fixed; inset: 0; background: #0b141a; display: flex; align-items: center; justify-content: center; z-index: 99; }
+  .lbox { width: min(360px, 92vw); background: #14262f; padding: 28px; border-radius: 14px; text-align: center; }
+  .lbox h1 { font-size: 20px; margin-bottom: 4px; }
+  .lbox .sub { font-size: 12px; color: #8ea3ab; margin-bottom: 16px; }
+  .linp { width: 100%; padding: 11px 14px; border-radius: 8px; border: 1px solid #233138; background: #0f1e26; color: #e1e8eb; font-size: 14px; margin: 5px 0; outline: none; }
+  .lbtn { width: 100%; padding: 12px; border: none; border-radius: 8px; background: #008069; color: #fff; font-size: 14.5px; cursor: pointer; margin-top: 8px; }
+  .lerr { color: #e06c6c; font-size: 12.5px; min-height: 18px; margin-top: 8px; }
+  #hubbar { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #8ea3ab; margin-left: auto; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #888; }
+  .dot.on { background: #2ecc71; }
+  .quota { background: #14262f; border-radius: 10px; padding: 14px; margin-bottom: 20px; font-size: 13px; }
+  .quota .bar { height: 8px; background: #233138; border-radius: 6px; overflow: hidden; margin-top: 6px; }
+  .quota .bar div { height: 100%; background: #53bdeb; }
+  @media (max-width: 860px) { nav { display: none; } nav.open { display: block; position: fixed; top: 59px; left: 0; bottom: 0; z-index: 40; } }
+</style>
+</head>
+<body>
+<div id="login" style="display:none">
+  <div class="lbox">
+    <h1>ChatNest Admin</h1>
+    <div class="sub">Sign in with the admin Gmail — a one-time code by email</div>
+    <input id="lemail" class="linp" type="email" placeholder="Admin Gmail address">
+    <input id="lcode" class="linp hidden" inputmode="numeric" maxlength="6" placeholder="6-digit code from your email">
+    <button id="lbtn" class="lbtn">Send my code</button>
+    <div class="lerr" id="lerr"></div>
+  </div>
+</div>
+<header>
+  <button id="burger">☰</button>
+  <div><h1>ChatNest Admin</h1><div class="sub" id="whoami">not signed in</div></div>
+  <div id="hubbar"><span class="dot" id="dot"></span><span id="hubtxt">connecting…</span><a href="#" id="sbOut" style="color:#9fd8cd;cursor:pointer;font-size:13px;margin-left:10px;">Sign out</a></div>
+</header>
+<div class="wrap">
+  <nav id="side">
+    <button class="nv act" data-v="dash">Dashboard</button>
+    <button class="nv" data-v="users">Users</button>
+    <button class="nv" data-v="chats">Chats</button>
+    <button class="nv" data-v="feed">Live feed</button>
+    <button class="nv" data-v="usage">Usage</button>
+  </nav>
+  <main>
+    <div id="v-dash">
+      <h2>Dashboard</h2><div class="hint">Live overview — updates automatically from the database.</div>
+      <div class="stats">
+        <div class="stat"><div class="n" id="stUsers">0</div><div class="l">Registered users</div></div>
+        <div class="stat"><div class="n" id="stChats">0</div><div class="l">Conversations</div></div>
+        <div class="stat"><div class="n" id="stMsgs">0</div><div class="l">Messages stored</div></div>
+        <div class="stat"><div class="n" id="stToday">0</div><div class="l">Messages today</div></div>
+        <div class="stat"><div class="n" id="stActive">0</div><div class="l">Active last 30 days</div></div>
+        <div class="stat"><div class="n" id="stOnline">0</div><div class="l">Online now</div></div>
+      </div>
+      <h2>Users</h2>
+      <div class="hint">Every registered user with their username. Ban, edit or delete usernames below.</div>
+      <div class="tblwrap"><div id="onlineList"></div></div>
+    </div>
+    <div id="v-users" style="display:none">
+      <h2>Users</h2><div class="hint">All users with usernames, login counts and last-seen. Click a row's buttons to manage.</div>
+      <input class="search" id="uSearch" placeholder="Search name, Gmail or username…">
+      <div id="usersWrap"></div>
+    </div>
+    <div id="v-chats" style="display:none">
+      <h2>Conversations</h2><div class="hint">Every one-to-one conversation, both participants. Click to view all messages.</div>
+      <input class="search" id="cSearch" placeholder="Search participants…">
+      <div id="chatsWrap"></div>
+    </div>
+    <div id="v-feed" style="display:none">
+      <h2>Live feed</h2><div class="hint">The newest messages, straight from the database. Click one to open the full conversation.</div>
+      <input class="search" id="fSearch" placeholder="Search user or message…">
+      <div id="feedWrap"></div>
+    </div>
+    <div id="v-usage" style="display:none">
+      <h2>Usage (free plan monitoring)</h2><div class="hint">ChatNest never upgrades you to a paid plan automatically. If a limit gets close, this page shows exactly which one.</div>
+      <div class="quota" id="quotaBox">Loading…</div>
+      <div class="hint">Free plan limits: database 500 MB · storage 1 GB · 200 realtime connections · 50,000 monthly active users. Text messages are about 1 KB each; images are compressed on the phone before upload.</div>
+    </div>
+  </main>
+</div>
+<div class="cmodal" id="chatModal" style="display:none">
+  <div class="cbox">
+    <div class="chead"><div><div class="cname" id="cmName"></div><div class="csub" id="cmSub"></div></div><button class="b" style="background:#2a3942" id="cmClose">✕</button></div>
+    <div class="cbody" id="cmBody"></div>
+  </div>
+</div>
+<script>
+/* ================= ChatNest Admin v33 — real database ================= */
+var SUPABASE_URL = 'https://ltcwjfywpxoklllustzx.supabase.co';
+var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx0Y3dqZnl3cHhva2xsbHVzdHp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTAwMjEsImV4cCI6MjEwNTkyNjAyMX0.4bl5sKnmdALi9pF4Dp6LJs1uCLPnoAImugkhlUmAlmg';
+function client() {
+  if (window.__sbMock) return window.__sbMock;
+  if (SUPABASE_URL.indexOf('PASTE_YOUR') === 0) return null;
+  if (!window.__c) window.__c = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return window.__c;
+}
+var D = { users: {}, convs: {}, msgs: [], stats: null, myId: null };
+function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function fmtTime(ts) { var d = new Date(ts); return d.toLocaleDateString([], { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+function fmtMB(b) { return (b / 1048576).toFixed(1) + ' MB'; }
+var cmdChannels = {};
+function sendCmd(userId, payload) {
+  var c = client(); if (!c || !userId) return;
+  var ch = cmdChannels[userId];
+  if (!ch) {
+    ch = c.channel('user-' + userId).on('broadcast', { event: 'cmd' }, function () {}).subscribe();
+    cmdChannels[userId] = ch;
+  }
+  setTimeout(function () { try { ch.send({ type: 'broadcast', event: 'cmd', payload: payload }); } catch (e) {} }, 600);
+}
+
+async function loadAll() {
+  var c = client(); if (!c) return;
+  var u = (await c.from('profiles').select('*').order('created_at', { ascending: true })).data || [];
+  u.forEach(function (p) { D.users[p.id] = p; });
+  var cv = (await c.from('conversations').select('*')).data || [];
+  cv.forEach(function (x) { D.convs[x.id] = x; });
+  var ms = (await c.from('messages').select('*').order('created_at', { ascending: false }).limit(1000)).data || [];
+  D.msgs = ms.reverse();
+  try { D.stats = (await c.rpc('admin_stats')).data; } catch (e) { D.stats = null; }
+  render();
+}
+function partnerOf(conv) { var a = D.users[conv.user_a], b = D.users[conv.user_b]; return { a: a, b: b }; }
+function msgsOf(convId) { return D.msgs.filter(function (m) { return m.conversation_id === convId; }); }
+
+function render() {
+  var users = Object.values(D.users);
+  var el = function (id) { return document.getElementById(id); };
+  el('whoami').textContent = users.length + ' users · ' + ((D.stats && D.stats.messages) || D.msgs.length) + ' messages';
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  el('stUsers').textContent = users.length;
+  el('stChats').textContent = Object.keys(D.convs).length;
+  el('stMsgs').textContent = (D.stats && D.stats.messages) || D.msgs.length;
+  el('stToday').textContent = D.msgs.filter(function (m) { return new Date(m.created_at).getTime() >= today.getTime(); }).length;
+  el('stActive').textContent = users.filter(function (p) { return p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < 30 * 86400000; }).length;
+  var online = 0; users.forEach(function (p) { if (p.last_seen_at && Date.now() - new Date(p.last_seen_at).getTime() < 120000) online++; });
+  el('stOnline').textContent = online;
+
+  function userRows(list) {
+    return list.map(function (p) {
+      var banned = !!p.banned;
+      return '<tr><td><span class="av">' + esc((p.name || '?').slice(0, 1).toUpperCase()) + '</span> <b>' + esc(p.name || '') + '</b></td>' +
+        '<td class="mut">' + esc(p.gmail) + '</td>' +
+        '<td class="mut">' + (p.username ? '@' + esc(p.username) : '\u2014') + ' <button class="b editUBtn" data-g="' + esc(p.gmail) + '" style="background:#2a3942;color:#53bdeb">Edit</button>' + (p.username ? ' <button class="b delUBtn" data-g="' + esc(p.gmail) + '" style="background:#8a6d1f">Delete username</button>' : '') + '</td>' +
+        '<td>' + (p.logins || 0) + '</td><td class="mut">' + (p.last_seen_at ? fmtTime(new Date(p.last_seen_at).getTime()) : '\u2014') + '</td>' +
+        '<td><span class="pill ' + (online ? 'on">\u25CF online' : 'off">\u25CB away') + (banned ? '</span> <span class="pill ban">BANNED' : '') + '</span></td>' +
+        '<td><button class="b banBtn" data-g="' + esc(p.gmail) + '" style="background:' + (banned ? '#008069' : '#6b2226') + '">' + (banned ? 'Unban' : 'Ban') + '</button></td></tr>';
+    }).join('');
+  }
+  var sorted = users.slice().sort(function (a, b) { return String(a.name || '').localeCompare(String(b.name || '')); });
+  el('onlineList').innerHTML = sorted.length ? '<table class="tbl"><tr><th>User</th><th>Gmail</th><th>Username</th><th>Logins</th><th>Last seen</th><th>Status</th><th>Action</th></tr>' + userRows(sorted) + '</table>' : '<div class="empty">No users yet — they appear here the moment they sign in.</div>';
+  var q = (el('uSearch').value || '').toLowerCase();
+  var fl = users.filter(function (p) { return !q || (p.name || '').toLowerCase().indexOf(q) >= 0 || (p.gmail || '').toLowerCase().indexOf(q) >= 0 || ('@' + (p.username || '')).indexOf(q) >= 0; });
+  el('usersWrap').innerHTML = fl.length ? '<table class="tbl"><tr><th>User</th><th>Gmail</th><th>Username</th><th>Logins</th><th>Last seen</th><th>Status</th><th>Action</th></tr>' + userRows(fl) + '</table>' : '<div class="empty">No users' + (q ? ' match your search' : ' yet') + '.</div>';
+
+  var cq = (el('cSearch').value || '').toLowerCase();
+  var convs = Object.values(D.convs).filter(function (c) {
+    var pp = partnerOf(c); var names = ((pp.a && (pp.a.name + ' ' + pp.a.gmail + ' @' + (pp.a.username || ''))) + ' ' + (pp.b && (pp.b.name + ' ' + pp.b.gmail + ' @' + (pp.b.username || '')))).toLowerCase();
+    return !cq || names.indexOf(cq) >= 0;
+  });
+  el('chatsWrap').innerHTML = convs.length ? '<table class="tbl"><tr><th>Conversation</th><th>Messages</th><th>Last activity</th><th></th></tr>' + convs.map(function (c) {
+    var pp = partnerOf(c); var n = msgsOf(c.id).length;
+    return '<tr style="cursor:pointer" data-conv="' + esc(c.id) + '"><td><b>' + esc((pp.a && pp.a.name) || '?') + '</b> <span class="mut">&harr;</span> <b>' + esc((pp.b && pp.b.name) || '?') + '</b></td><td>' + n + '</td><td class="mut">' + fmtTime(new Date(c.created_at).getTime()) + '</td><td><button class="b" data-conv="' + esc(c.id) + '" style="background:#008069">View messages</button></td></tr>';
+  }).join('') + '</table>' : '<div class="empty">No conversations yet.</div>';
+
+  var fq = (el('fSearch').value || '').toLowerCase();
+  var feed = D.msgs.slice().reverse().filter(function (m) {
+    var p = D.users[m.sender]; var s = ((p && p.name) || '') + ' ' + ((p && p.gmail) || '') + ' ' + (m.content || '');
+    return !fq || s.toLowerCase().indexOf(fq) >= 0;
+  }).slice(0, 300);
+  el('feedWrap').innerHTML = feed.length ? feed.map(function (m) {
+    var p = D.users[m.sender] || {};
+    return '<div class="stat" style="cursor:pointer" data-conv="' + esc(m.conversation_id) + '"><div><b>' + esc(p.name || p.gmail || '?') + '</b> <span class="mut">' + esc(p.gmail || '') + ' · ' + fmtTime(new Date(m.created_at).getTime()) + ' · ' + (m.kind === 'text' ? 'text' : m.kind) + (m.read_at ? ' · read' : (m.delivered_at ? ' · delivered' : ' · sent')) + '</span></div><div style="margin-top:6px">' + esc(String(m.content || '').slice(0, 160)) + '</div></div>';
+  }).join('') : '<div class="empty">No messages yet.</div>';
+
+  var qb = el('quotaBox');
+  if (D.stats) {
+    var dbPct = Math.min(100, (D.stats.db_bytes / (500 * 1048576)) * 100).toFixed(1);
+    var stPct = Math.min(100, (D.stats.storage_bytes / (1024 * 1048576)) * 100).toFixed(1);
+    qb.innerHTML = '<b>Database:</b> ' + fmtMB(D.stats.db_bytes) + ' of 500 MB (' + dbPct + '%)<div class="bar"><div style="width:' + dbPct + '%"></div></div>' +
+      '<div style="height:10px"></div><b>File storage:</b> ' + fmtMB(D.stats.storage_bytes) + ' of 1 GB (' + stPct + '%)<div class="bar"><div style="width:' + stPct + '%"></div></div>' +
+      '<div style="height:10px"></div><b>Monthly active users:</b> ' + D.stats.active_30d + ' of 50,000 · <b>Messages:</b> ' + D.stats.messages + ' · <b>Conversations:</b> ' + D.stats.conversations;
+  } else { qb.innerHTML = 'Usage numbers appear here after you log in as the admin.'; }
+}
+
+async function openChatModal(convId) {
+  var c = client();
+  var list = (await c.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true }).limit(500)).data || [];
+  var conv = D.convs[convId] || {};
+  var pp = partnerOf(conv);
+  document.getElementById('cmName').textContent = ((pp.a && pp.a.name) || '?') + ' \u2194 ' + ((pp.b && pp.b.name) || '?');
+  document.getElementById('cmSub').textContent = list.length + ' message' + (list.length === 1 ? '' : 's');
+  var body = document.getElementById('cmBody'); body.innerHTML = '';
+  for (var i = 0; i < list.length; i++) {
+    (function (m) {
+      var right = m.sender === conv.user_b;
+      var b = document.createElement('div'); b.className = 'bub ' + (right ? 'right' : 'left');
+      if (!right) { var w = document.createElement('div'); w.className = 'who2'; var p = D.users[m.sender]; w.textContent = (p && p.name) || (p && p.gmail) || '?'; b.appendChild(w); }
+      var tx = document.createElement('div'); tx.textContent = m.content || ''; b.appendChild(tx);
+      if (m.media) {
+        var im = document.createElement('img');
+        c.storage.from('media').createSignedUrl(m.media, 3600).then(function (r) { if (r && r.data && r.data.signedUrl) { im.src = r.data.signedUrl; im.loading = 'lazy'; } });
+        b.appendChild(im);
+      }
+      var tm = document.createElement('div'); tm.className = 'bt';
+      tm.textContent = fmtTime(new Date(m.created_at).getTime()) + (m.read_at ? ' · read' : (m.delivered_at ? ' · delivered' : ' · sent'));
+      b.appendChild(tm);
+      body.appendChild(b);
+    })(list[i]);
+  }
+  document.getElementById('chatModal').style.display = 'flex';
+  body.scrollTop = body.scrollHeight;
+}
+async function toggleBan(gmail) {
+  var c = client();
+  var p = Object.values(D.users).find(function (x) { return x.gmail === gmail; }); if (!p) return;
+  await c.from('profiles').update({ banned: !p.banned }).eq('id', p.id);
+  await loadAll();
+}
+async function editUsername(gmail) {
+  var c = client();
+  var p = Object.values(D.users).find(function (x) { return x.gmail === gmail; }); if (!p) return;
+  var nu = (prompt('Username for ' + (p.name || gmail) + ' (3-20 letters, numbers, dot or underscore):', p.username || '') || '').trim().toLowerCase();
+  if (!nu) return;
+  if (!/^[a-z0-9_.]{3,20}$/.test(nu)) { alert('Please use 3-20 letters, numbers, dot or underscore.'); return; }
+  var clash = Object.values(D.users).some(function (x) { return x.id !== p.id && x.username === nu; });
+  if (clash) { alert('That username is already used by another user.'); return; }
+  var r = await c.from('profiles').update({ username: nu }).eq('id', p.id);
+  if (r && r.error && /duplicate|unique/i.test(r.error.message || '')) { alert('That username is already used by another user.'); return; }
+  sendCmd(p.id, { type: 'username-set', username: nu });
+  await loadAll();
+}
+async function deleteUsername(gmail) {
+  var c = client();
+  var p = Object.values(D.users).find(function (x) { return x.gmail === gmail; }); if (!p || !p.username) return;
+  await c.from('profiles').update({ username: null }).eq('id', p.id);
+  sendCmd(p.id, { type: 'username-deleted' });
+  await loadAll();
+}
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('.banBtn'); if (b) { toggleBan(b.dataset.g || ''); return; }
+  var eu = e.target.closest && e.target.closest('.editUBtn'); if (eu) { editUsername(eu.dataset.g || ''); return; }
+  var du = e.target.closest && e.target.closest('.delUBtn'); if (du) { deleteUsername(du.dataset.g || ''); return; }
+  var row = e.target.closest && e.target.closest('[data-conv]'); if (row && row.dataset.conv) openChatModal(row.dataset.conv);
+});
+document.getElementById('cmClose').addEventListener('click', function () { document.getElementById('chatModal').style.display = 'none'; });
+document.getElementById('chatModal').addEventListener('click', function (e) { if (e.target === this) this.style.display = 'none'; });
+document.getElementById('burger').addEventListener('click', function () { document.getElementById('side').classList.toggle('open'); });
+document.querySelectorAll('.nv').forEach(function (nv) { nv.addEventListener('click', function () {
+  document.querySelectorAll('.nv').forEach(function (x) { x.classList.remove('act'); });
+  nv.classList.add('act');
+  ['dash', 'users', 'chats', 'feed', 'usage'].forEach(function (v) { document.getElementById('v-' + v).style.display = (nv.dataset.v === v) ? '' : 'none'; });
+  document.getElementById('side').classList.remove('open');
+}); });
+['uSearch', 'cSearch', 'fSearch'].forEach(function (id) { document.getElementById(id).addEventListener('input', render); });
+
+/* ---------- login (hardened OTP state machine, same flow as the main app) ---------- */
+var ADMIN_resetLogin = null;
+async function start() {
+  var c = client();
+  var lg = document.getElementById('login');
+  if (!c) { document.getElementById('hubtxt').textContent = 'Setup needed: paste your Supabase keys in this file'; return; }
+  /* v2: one auth-state listener — a signed-out session returns to the login
+     screen instead of leaving a stale dashboard open */
+  try {
+    c.auth.onAuthStateChange(function (ev, sess) {
+      try {
+        if (ev === 'SIGNED_OUT') { if (ADMIN_resetLogin) ADMIN_resetLogin(); }
+        else if ((ev === 'SIGNED_IN' || ev === 'INITIAL_SESSION') && sess && sess.session && !D.myId) begin(sess.session.user);
+      } catch (e) {}
+    });
+  } catch (e) {}
+  /* v2: the login UI is wired exactly once, even when a session is being restored,
+     so a later sign-out can always return to a working login screen */
+  wireLogin(c, lg);
+  var sess = (await c.auth.getSession().catch(function () { return { data: null }; })).data;
+  if (sess && sess.session) { begin(sess.session.user); return; }
+  lg.style.display = 'flex';
+}
+function wireLogin(c, lg) {
+  var em = document.getElementById('lemail'), cd = document.getElementById('lcode'), err = document.getElementById('lerr'), btn = document.getElementById('lbtn');
+  /* OTP state machine: IDLE -> REQUESTING_CODE -> OTP_ENTRY -> VERIFYING_CODE ->
+     AUTHENTICATED, with RATE_LIMITED handled by moving into the OTP-entry state
+     (where the resend control the message mentions actually exists) */
+  var state = 'IDLE', busy = false, cool = 0, coolIv = null;
+  var row = document.createElement('div');
+  row.style.cssText = 'text-align:center;margin-top:10px;font-size:13px;display:none;';
+  var resend = document.createElement('a'); resend.href = '#'; resend.style.marginRight = '14px';
+  var change = document.createElement('a'); change.href = '#';
+  row.appendChild(resend); row.appendChild(change);
+  btn.parentNode.insertBefore(row, btn.nextSibling);
+  function coolTick() {
+    if (state === 'REQUESTING_CODE') { resend.textContent = 'Sending code...'; resend.style.pointerEvents = 'none'; return; }
+    if (cool > 0) { resend.textContent = 'Resend code in ' + cool + 's'; resend.style.pointerEvents = 'none'; }
+    else { resend.textContent = 'Resend code'; resend.style.pointerEvents = ''; }
+  }
+  function startCool(n) {
+    cool = n; coolTick();
+    if (coolIv) clearInterval(coolIv);
+    coolIv = setInterval(function () { if ((state === 'OTP_ENTRY' || state === 'RATE_LIMITED') && cool > 0) { cool -= 1; coolTick(); } }, 1000);
+  }
+  function showCodeStep(gmail, note) {
+    state = 'OTP_ENTRY';
+    cd.classList.remove('hidden'); cd.value = ''; cd.focus();
+    btn.textContent = 'Verify my code'; row.style.display = 'block'; change.textContent = 'Change email';
+    err.textContent = note || ('A 6-digit code was sent to ' + gmail + '.');
+    startCool(60);
+  }
+  function showEmailStep() {
+    state = 'IDLE';
+    cd.classList.add('hidden'); cd.value = '';
+    btn.textContent = 'Send my code'; row.style.display = 'none';
+  }
+  resend.onclick = function (e) { e.preventDefault(); if (cool > 0 || busy) return; doSend(); };
+  change.onclick = function (e) { e.preventDefault(); showEmailStep(); err.textContent = ''; };
+  ADMIN_resetLogin = function () {
+    state = 'IDLE'; busy = false; cool = 0;
+    try { clearInterval(coolIv); } catch (e) {}
+    btn.disabled = false; showEmailStep(); err.textContent = 'You were signed out. Please log in again.';
+    lg.style.display = 'flex';
+    try { D.myId = null; } catch (e) {}
+    try { if (D.tick) { clearInterval(D.tick); D.tick = null; } } catch (e) {}
+    try { if (D.live) { c.removeChannel(D.live); D.live = null; } } catch (e) {}
+    try { document.getElementById('whoami').textContent = 'not signed in'; } catch (e) {}
+    try { document.getElementById('dot').className = 'dot'; document.getElementById('hubtxt').textContent = 'signed out'; } catch (e) {}
+  };
+  async function doSend() {
+    var gmail = (em.value || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gmail)) { err.textContent = 'Please enter a valid email address.'; return; }
+    err.textContent = '';
+    state = 'REQUESTING_CODE'; busy = true; btn.disabled = true; btn.textContent = 'Sending code...'; coolTick();
+    var r = null;
+    try {
+      /* v2: if the admin ever clicks the email link, it must land back on
+         admin.html (this exact page), never on a local address or the main app */
+      var options = {};
+      try { var rd = location.origin + location.pathname; if (/^https:/.test(rd)) options.emailRedirectTo = rd; } catch (e2) {}
+      var wd = new Promise(function (res) { setTimeout(function () { res({ __sbTimeout: true }); }, 35000); });
+      r = await Promise.race([c.auth.signInWithOtp({ email: gmail, options: options }), wd]);
+    } catch (e) { r = { error: e }; }
+    busy = false; btn.disabled = false;
+    if (r && r.__sbTimeout) {
+      showCodeStep(gmail, 'The server did not confirm the send. If the code email arrives, enter it below \u2014 or use Resend code in a minute.');
+      return;
+    }
+    if (r && r.error) {
+      var msg = String((r.error && (r.error.message || r.error.msg)) || r.error);
+      if (/once every|rate|429|too many|frequent/i.test(msg)) {
+        showCodeStep(gmail, 'Another code was recently requested for this email. Enter the code you received, or wait for the countdown to resend.');
+        state = 'RATE_LIMITED';
+        return;
+      }
+      state = 'ERROR'; btn.textContent = 'Send my code';
+      if (/fetch|network/i.test(msg)) err.textContent = 'Connection problem. Check your internet and try again.';
+      else err.textContent = 'Could not send the code: ' + msg;
+      return;
+    }
+    showCodeStep(gmail);
+  }
+  async function doVerify() {
+    var gmail = (em.value || '').trim().toLowerCase();
+    var code = (cd.value || '').replace(/\D/g, '');
+    if (code.length < 6) { err.textContent = 'Please enter the 6-digit code from your email.'; return; }
+    err.textContent = '';
+    state = 'VERIFYING_CODE'; busy = true; btn.disabled = true; btn.textContent = 'Verifying...';
+    var r2 = null;
+    try {
+      var wd2 = new Promise(function (res) { setTimeout(function () { res({ __sbTimeout: true }); }, 35000); });
+      r2 = await Promise.race([c.auth.verifyOtp({ email: gmail, token: code, type: 'email' }), wd2]);
+    } catch (e) { r2 = { error: e }; }
+    busy = false; btn.disabled = false;
+    if (r2 && r2.__sbTimeout) { state = 'OTP_ENTRY'; btn.textContent = 'Verify my code'; err.textContent = 'The server did not answer. Check your internet and try again.'; return; }
+    if (r2 && r2.error) {
+      state = 'OTP_ENTRY'; btn.textContent = 'Verify my code';
+      var m2 = String((r2.error && (r2.error.message || r2.error.msg)) || r2.error);
+      if (/expired/i.test(m2)) err.textContent = 'That code has expired. Request a new code with Resend code.';
+      else if (/once every|rate|429|too many|frequent/i.test(m2)) err.textContent = 'Too many attempts. Please wait a minute before trying again.';
+      else if (/fetch|network/i.test(m2)) err.textContent = 'Connection problem. Check your internet and try again.';
+      else err.textContent = 'That code is incorrect. Check the email and try again.';
+      return;
+    }
+    if (r2 && r2.data && r2.data.session) { state = 'AUTHENTICATED'; begin(r2.data.session.user); return; }
+    state = 'OTP_ENTRY'; btn.textContent = 'Verify my code'; err.textContent = 'That code is incorrect. Check the email and try again.';
+  }
+  btn.onclick = function () { if (busy) return; if (state === 'OTP_ENTRY' || state === 'VERIFYING_CODE' || state === 'RATE_LIMITED') doVerify(); else doSend(); };
+}
+async function begin(user) {
+  var c = client();
+  document.getElementById('login').style.display = 'none';
+  D.myId = user.id;
+  document.getElementById('whoami').textContent = 'signed in as ' + (user.email || '');
+  document.getElementById('dot').className = 'dot on';
+  document.getElementById('hubtxt').textContent = 'connected to the database';
+  await loadAll();
+  if (!Object.keys(D.users).length) document.getElementById('hubtxt').textContent = 'no data visible \u2014 this Gmail is not the admin set up in the SQL';
+  D.tick = setInterval(loadAll, 8000);
+  try {
+    D.live = c.channel('admin-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, function () { loadAll(); })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, function () { loadAll(); })
+      .subscribe();
+  } catch (e) {}
+}
+/* v2: explicit sign-out — really ends the Supabase session, then returns to login */
+document.getElementById('sbOut').addEventListener('click', function (e) {
+  e.preventDefault();
+  var c = client(); var done = false;
+  var fin = function () { if (done) return; done = true; try { location.reload(); } catch (e2) { if (ADMIN_resetLogin) ADMIN_resetLogin(); } };
+  try { if (c && c.auth && c.auth.signOut) { Promise.race([c.auth.signOut(), new Promise(function (r) { setTimeout(r, 3000); })]).then(fin, fin); } else fin(); } catch (e2) { fin(); }
+});
+start();
+</script>
+</body>
+</html>
